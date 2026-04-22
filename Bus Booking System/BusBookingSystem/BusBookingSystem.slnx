@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/BusBooking.API/BusBooking.API.csproj" />
+    <Project Path="src/BusBooking.Application/BusBooking.Application.csproj" />
+    <Project Path="src/BusBooking.Domain/BusBooking.Domain.csproj" />
+    <Project Path="src/BusBooking.Infrastructure/BusBooking.Infrastructure.csproj" />
+  </Folder>
+</Solution>

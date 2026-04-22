@@ -1,0 +1,51 @@
+# ── .NET ──────────────────────────────────────────────────────────────────────
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+*.swp
+*.log
+TestResults/
+coverage/
+
+# Secrets & config overrides (NEVER commit these)
+appsettings.Development.json
+appsettings.Production.json
+*.pfx
+*.p12
+secrets.json
+
+# EF Core migrations (keep the Migrations folder, ignore snapshots if needed)
+# *.designer.cs  ← leave this commented, you usually want migrations committed
+
+# ── Angular ───────────────────────────────────────────────────────────────────
+bus-booking-client/node_modules/
+bus-booking-client/dist/
+bus-booking-client/.angular/
+bus-booking-client/.sass-cache/
+bus-booking-client/coverage/
+bus-booking-client/*.js.map
+
+# Angular environment files with secrets
+bus-booking-client/src/environments/environment.prod.ts
+
+# ── PostgreSQL ────────────────────────────────────────────────────────────────
+*.sql.bak
+pgdata/
+*.dump
+
+# ── OS & Editor ───────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/settings.json
+*.orig
+
+# ── Misc ──────────────────────────────────────────────────────────────────────
+*.env
+.env
+.env.local
