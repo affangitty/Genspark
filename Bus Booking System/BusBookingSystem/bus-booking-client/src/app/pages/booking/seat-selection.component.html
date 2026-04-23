@@ -1,0 +1,63 @@
+@if (loading) {
+  <div class="text-center py-5">
+    <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading…</span></div>
+    <p class="text-muted small mt-2">Loading bus and seats…</p>
+  </div>
+} @else {
+  <div class="row g-4">
+    <div class="col-lg-4">
+      <div class="card app-card border-0 h-100">
+        <div class="card-body">
+          <h1 class="h5 fw-bold mb-3">Trip details</h1>
+          @if (bus) {
+            <p class="small text-uppercase text-muted mb-1">Bus</p>
+            <p class="fw-semibold mb-2">{{ bus.busNumber }} — {{ bus.busName }}</p>
+            <p class="small text-muted mb-1">Route</p>
+            <p class="mb-2">{{ bus.sourceCity }} → {{ bus.destinationCity }}</p>
+            <p class="small text-muted mb-1">Date</p>
+            <p class="mb-0">{{ journeyDate }}</p>
+          }
+          <hr />
+          <p class="small text-muted mb-0">Tap seats to lock them (requires sign-in for live locks).</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-8">
+      <div class="card app-card border-0">
+        <div class="card-body p-4">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="h5 fw-bold mb-0">Select seats</h2>
+            <span class="badge bg-primary-subtle text-primary">{{ selectedSeats.size }} selected</span>
+          </div>
+
+          @if (error) {
+            <div class="alert alert-danger" role="alert">{{ error }}</div>
+          }
+
+          <div class="seat-grid-bs mb-4">
+            @for (seat of seats; track seat.id) {
+              <button
+                type="button"
+                class="btn seat-btn rounded-3 border-2"
+                [class.btn-primary]="selectedSeats.has(seat.id)"
+                [class.btn-outline-secondary]="!selectedSeats.has(seat.id) && (seat.isAvailable || selectedSeats.has(seat.id))"
+                [class.btn-light]="!seat.isAvailable && !selectedSeats.has(seat.id)"
+                [disabled]="!seat.isAvailable && !selectedSeats.has(seat.id)"
+                (click)="toggleSeat(seat)"
+              >
+                {{ seat.seatNumber }}
+              </button>
+            }
+          </div>
+
+          <div class="d-flex flex-column flex-sm-row gap-2 justify-content-between align-items-sm-center pt-2 border-top">
+            <span class="text-muted small">Unavailable seats are disabled.</span>
+            <button type="button" class="btn btn-primary px-4" [disabled]="selectedSeats.size === 0" (click)="continue()">
+              Continue to checkout
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+}

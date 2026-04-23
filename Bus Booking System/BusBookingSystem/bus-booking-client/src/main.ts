@@ -1,3 +1,6 @@
+import 'zone.js';
+import 'bootstrap/dist/js/bootstrap.bundle.min.js';
+
 import { platformBrowser } from '@angular/platform-browser';
 import { AppModule } from './app/app-module';
 

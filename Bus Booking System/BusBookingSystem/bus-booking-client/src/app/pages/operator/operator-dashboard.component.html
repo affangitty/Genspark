@@ -1,0 +1,127 @@
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
+  <div>
+    <h1 class="h3 fw-bold mb-1">Operator dashboard</h1>
+    <p class="text-muted small mb-0">Buses, route requests, and bookings.</p>
+  </div>
+  @if (loading) {
+    <div class="d-flex align-items-center gap-2 text-muted small">
+      <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+      Loading…
+    </div>
+  }
+</div>
+
+@if (error) {
+  <div class="alert alert-danger" role="alert">{{ error }}</div>
+}
+
+@if (summary) {
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+      <div class="card app-card border-0 p-3 text-center">
+        <p class="small text-muted mb-1">Total</p>
+        <p class="h4 fw-bold mb-0">{{ summary.totalBookings }}</p>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card app-card border-0 p-3 text-center">
+        <p class="small text-muted mb-1">Confirmed</p>
+        <p class="h4 fw-bold text-success mb-0">{{ summary.confirmedBookings }}</p>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card app-card border-0 p-3 text-center">
+        <p class="small text-muted mb-1">Cancelled</p>
+        <p class="h4 fw-bold text-warning mb-0">{{ summary.cancelledBookings }}</p>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card app-card border-0 p-3 text-center bg-primary-subtle">
+        <p class="small text-primary mb-1">Net revenue</p>
+        <p class="h4 fw-bold text-primary mb-0">₹{{ summary.netRevenue }}</p>
+      </div>
+    </div>
+  </div>
+}
+
+<div class="card app-card border-0 mb-4">
+  <div class="card-header bg-white border-bottom py-3">
+    <h2 class="h5 fw-semibold mb-0">Your buses</h2>
+  </div>
+  <ul class="list-group list-group-flush">
+    @for (bus of buses; track bus.id) {
+      <li class="list-group-item px-4 py-3">
+        <div class="row align-items-center g-2">
+          <div class="col-md-7">
+            <strong>{{ bus.busNumber }}</strong>
+            <span class="text-muted">·</span>
+            {{ bus.busName }}
+            <p class="small text-muted mb-0">Status: {{ bus.status }} · Fare ₹{{ bus.baseFare }}</p>
+          </div>
+          <div class="col-md-5 text-md-end">
+            <button type="button" class="btn btn-outline-primary btn-sm me-1" (click)="toggleBusStatus(bus)">
+              {{ bus.status === 'TemporarilyUnavailable' ? 'Mark available' : 'Mark unavailable' }}
+            </button>
+            <button type="button" class="btn btn-outline-danger btn-sm" (click)="removeBus(bus.id)">Remove</button>
+          </div>
+        </div>
+      </li>
+    } @empty {
+      <li class="list-group-item text-center text-muted py-4">No buses yet.</li>
+    }
+  </ul>
+</div>
+
+<div class="card app-card border-0 mb-4">
+  <div class="card-body">
+    <h2 class="h5 fw-semibold mb-3">Request route assignment</h2>
+    <div class="row g-3 align-items-end">
+      <div class="col-md-5">
+        <label class="form-label">Bus</label>
+        <select class="form-select" [(ngModel)]="selectedBusId">
+          <option value="">Select bus</option>
+          @for (bus of buses; track bus.id) {
+            <option [value]="bus.id">{{ bus.busNumber }}</option>
+          }
+        </select>
+      </div>
+      <div class="col-md-5">
+        <label class="form-label">Route</label>
+        <select class="form-select" [(ngModel)]="selectedRouteId">
+          <option value="">Select route</option>
+          @for (route of routes; track route.id) {
+            <option [value]="route.id">{{ route.sourceCity }} → {{ route.destinationCity }}</option>
+          }
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button type="button" class="btn btn-primary w-100" (click)="requestRouteAssignment()">Submit</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card app-card border-0">
+  <div class="card-header bg-white border-bottom py-3">
+    <h2 class="h5 fw-semibold mb-0">Bookings</h2>
+  </div>
+  <ul class="list-group list-group-flush">
+    @for (booking of bookings; track booking.bookingId) {
+      <li class="list-group-item px-4 py-3">
+        <div class="d-flex justify-content-between flex-wrap gap-2">
+          <div>
+            <strong>{{ booking.bookingReference }}</strong>
+            <p class="small text-muted mb-0">{{ booking.route }} · {{ booking.journeyDate | date: 'mediumDate' }}</p>
+            <p class="small mb-0">{{ booking.passengers.length }} passenger(s)</p>
+          </div>
+          <div class="text-end">
+            <span class="badge bg-secondary-subtle text-secondary">{{ booking.status }}</span>
+            <p class="fw-semibold mb-0 mt-1">₹{{ booking.totalAmount }}</p>
+          </div>
+        </div>
+      </li>
+    } @empty {
+      <li class="list-group-item text-center text-muted py-4">No bookings yet.</li>
+    }
+  </ul>
+</div>

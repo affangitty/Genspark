@@ -1,0 +1,81 @@
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-8 col-xl-7">
+    <div class="card app-card border-0 shadow">
+      <div class="card-body p-4 p-md-5">
+        <h1 class="h4 fw-bold mb-1">{{ isOperator ? 'Operator registration' : 'Create your account' }}</h1>
+        <p class="text-muted small mb-4">
+          {{ isOperator ? 'Submit details for admin approval before you can operate buses.' : 'Book buses and manage your trips in one place.' }}
+        </p>
+
+        <form [formGroup]="isOperator ? operatorForm : userForm" (ngSubmit)="submit()">
+          <div class="row g-3">
+            @if (!isOperator) {
+              <div class="col-md-6">
+                <label class="form-label" for="fullName">Full name</label>
+                <input id="fullName" type="text" class="form-control" formControlName="fullName" />
+              </div>
+            } @else {
+              <div class="col-md-6">
+                <label class="form-label" for="company">Company name</label>
+                <input id="company" type="text" class="form-control" formControlName="companyName" />
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="contact">Contact person</label>
+                <input id="contact" type="text" class="form-control" formControlName="contactPersonName" />
+              </div>
+            }
+
+            <div class="col-md-6">
+              <label class="form-label" for="regEmail">Email</label>
+              <input id="regEmail" type="email" class="form-control" formControlName="email" autocomplete="email" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="phone">Phone</label>
+              <input id="phone" type="text" class="form-control" formControlName="phoneNumber" autocomplete="tel" />
+              @if (activeForm.get('phoneNumber')?.touched && activeForm.get('phoneNumber')?.errors?.['pattern']) {
+                <div class="form-text text-danger">10–15 digits; optional +. Spaces removed on submit.</div>
+              }
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label" for="pw1">Password</label>
+              <input id="pw1" type="password" class="form-control" formControlName="password" autocomplete="new-password" />
+              @if (activeForm.get('password')?.touched && activeForm.get('password')?.invalid) {
+                <div class="form-text text-danger">Min 8 chars with upper, lower, and a number.</div>
+              }
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="pw2">Confirm password</label>
+              <input id="pw2" type="password" class="form-control" formControlName="confirmPassword" autocomplete="new-password" />
+              @if (activeForm.errors?.['passwordsMismatch'] && activeForm.get('confirmPassword')?.touched) {
+                <div class="form-text text-danger">Passwords do not match.</div>
+              }
+            </div>
+          </div>
+
+          <div class="d-grid gap-2 mt-4">
+            <button type="submit" class="btn btn-primary btn-lg" [disabled]="loading">
+              @if (loading) {
+                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                Submitting…
+              } @else {
+                Register
+              }
+            </button>
+          </div>
+        </form>
+
+        @if (message) {
+          <div class="alert alert-success mt-3 mb-0" role="status">{{ message }}</div>
+        }
+        @if (error) {
+          <div class="alert alert-danger mt-3 mb-0" role="alert">{{ error }}</div>
+        }
+
+        <p class="text-center small text-muted mt-4 mb-0">
+          <a routerLink="/auth/login" class="fw-semibold">Back to sign in</a>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>

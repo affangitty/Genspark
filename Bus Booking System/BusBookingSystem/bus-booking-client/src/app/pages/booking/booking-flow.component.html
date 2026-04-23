@@ -1,0 +1,67 @@
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-10 col-xl-8">
+    <div class="card app-card border-0 shadow">
+      <div class="card-body p-4 p-md-5">
+        <h1 class="h4 fw-bold mb-1">Passenger details</h1>
+        <p class="text-muted small mb-4">Enter details for each seat, then confirm payment.</p>
+
+        @if (paymentSuccess) {
+          <div class="alert alert-success d-flex align-items-center gap-2" role="status">
+            <span>✓</span>
+            <span>Booking confirmed. Redirecting to your dashboard…</span>
+          </div>
+        }
+
+        <form [formGroup]="form" (ngSubmit)="payAndBook()">
+          <div formArrayName="passengers" class="vstack gap-4">
+            @for (group of passengers.controls; track $index) {
+              <fieldset class="border rounded-3 p-3 bg-body-secondary bg-opacity-50" [formGroupName]="$index">
+                <legend class="float-none w-auto px-2 fs-6 fw-semibold text-primary">Passenger {{ $index + 1 }}</legend>
+                <div class="row g-3 mt-1">
+                  <div class="col-md-6">
+                    <label class="form-label">Full name</label>
+                    <input type="text" class="form-control" formControlName="passengerName" placeholder="As on ID" />
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label">Age</label>
+                    <input type="number" class="form-control" formControlName="age" />
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label">Gender</label>
+                    <select class="form-select" formControlName="gender">
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                </div>
+              </fieldset>
+            }
+          </div>
+
+          <div class="card bg-primary-subtle border-0 my-4">
+            <div class="card-body">
+              <h2 class="h6 fw-bold text-primary mb-2">Payment summary</h2>
+              <p class="mb-1"><span class="text-muted">Total (incl. convenience fee)</span></p>
+              <p class="h4 fw-bold text-body mb-2">₹{{ totalAmount }}</p>
+              <p class="small text-muted mb-0">Demo: payment is simulated on submit.</p>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-lg w-100" [disabled]="loading">
+            @if (loading) {
+              <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+              Processing…
+            } @else {
+              Pay & confirm booking
+            }
+          </button>
+        </form>
+
+        @if (error) {
+          <div class="alert alert-danger mt-3 mb-0" role="alert">{{ error }}</div>
+        }
+      </div>
+    </div>
+  </div>
+</div>

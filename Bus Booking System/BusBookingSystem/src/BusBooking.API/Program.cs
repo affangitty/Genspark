@@ -1,55 +1,80 @@
 using BusBooking.API.Extensions;
+using BusBooking.API.Filters;
+using BusBooking.API.Hubs;
+using BusBooking.API.Middleware;
 using BusBooking.Application;
 using BusBooking.Infrastructure;
+using BusBooking.Infrastructure.Persistence;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ── Application & Infrastructure ─────────────────────────────
+builder.Host.UseSerilog((context, services, configuration) => configuration
+    .ReadFrom.Configuration(context.Configuration)
+    .ReadFrom.Services(services)
+    .Enrich.FromLogContext()
+    .WriteTo.Console());
+
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
-
-// ── Auth ──────────────────────────────────────────────────────
 builder.Services.AddJwtAuthentication(builder.Configuration);
 
-// ── Controllers ───────────────────────────────────────────────
-builder.Services.AddControllers();
+builder.Services.AddScoped<ApiDtoValidationFilter>();
+builder.Services.AddControllers(options => options.Filters.AddService<ApiDtoValidationFilter>());
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddBusBookingSwagger();
 
-// ── SignalR ───────────────────────────────────────────────────
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<AppDbContext>("database", tags: new[] { "db", "ready" });
+
 builder.Services.AddSignalR();
 
-// ── CORS ──────────────────────────────────────────────────────
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAngular", policy =>
         policy.WithOrigins("http://localhost:4200")
-              .AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials());
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials());
 });
-
-// ── Swagger ───────────────────────────────────────────────────
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
-// ── Middleware Pipeline ───────────────────────────────────────
+app.UseMiddleware<CorrelationIdMiddleware>();
+
+app.UseSerilogRequestLogging(options =>
+{
+    options.EnrichDiagnosticContext = (diagContext, httpContext) =>
+    {
+        if (httpContext.Items.TryGetValue(CorrelationIdMiddleware.ItemKey, out var cid) && cid is string s)
+            diagContext.Set("CorrelationId", s);
+    };
+});
+
+app.UseMiddleware<GlobalExceptionHandlerMiddleware>();
+
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
-        c.SwaggerEndpoint("/openapi/v1.json", "Bus Booking API v1");
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Bus Booking API v1");
+        c.DocumentTitle = "Bus Booking API";
     });
 }
 
 app.UseCors("AllowAngular");
-app.UseHttpsRedirection();
+// Avoid redirecting the Angular dev client (http://localhost:4200 → API on http://5153) to HTTPS when no HTTPS URL is in use.
+if (!app.Environment.IsDevelopment())
+    app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
-app.MapControllers();
 
-// ── Seed Admin & Default Config ───────────────────────────────
+app.MapControllers();
+app.MapHub<SeatHub>("/hubs/seats");
+
+app.MapHealthChecks("/health");
+
 await BusBooking.Infrastructure.Persistence.Seed.AdminSeeder.SeedAsync(app.Services);
 
 app.Run();

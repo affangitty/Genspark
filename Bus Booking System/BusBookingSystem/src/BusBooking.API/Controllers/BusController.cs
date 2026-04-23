@@ -1,7 +1,10 @@
+using System.Security.Claims;
 using BusBooking.Application.DTOs.Bus;
+using BusBooking.Application.Features.Search.Queries;
 using BusBooking.Domain.Entities;
 using BusBooking.Domain.Enums;
 using BusBooking.Domain.Interfaces;
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -12,10 +15,43 @@ namespace BusBooking.API.Controllers;
 public class BusController : ControllerBase
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IMediator _mediator;
 
-    public BusController(IUnitOfWork unitOfWork)
+    public BusController(IUnitOfWork unitOfWork, IMediator mediator)
     {
         _unitOfWork = unitOfWork;
+        _mediator = mediator;
+    }
+
+    // ── Bus Search Endpoint ───────────────────────────────────
+
+    /// <summary>
+    /// Search available buses with fuzzy matching on location names
+    /// Returns buses with available seat counts and pricing
+    /// </summary>
+    [HttpPost("search")]
+    [AllowAnonymous]
+    public async Task<ActionResult<List<BusResponseDto>>> SearchBuses(
+        [FromBody] BusSearchRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var query = new SearchBusesQuery
+            {
+                SourceCity = request.SourceCity,
+                DestinationCity = request.DestinationCity,
+                JourneyDate = request.JourneyDate,
+                PassengerCount = request.PassengerCount
+            };
+
+            var result = await _mediator.Send(query, cancellationToken);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Error searching buses", error = ex.Message });
+        }
     }
 
     // ── Bus Layout Endpoints ──────────────────────────────────
@@ -339,13 +375,17 @@ public class BusController : ControllerBase
         if (bus == null)
             return NotFound(new { message = "Bus not found." });
 
-        // Get booked seat IDs for this journey date
         var bookedSeatIds = await _unitOfWork.Bookings
             .GetBookedSeatIdsByBusAndDateAsync(id, journeyDate.Date);
 
-        // Get locked seat IDs
-        var lockedSeatIds = await _unitOfWork.SeatLocks
-            .GetActiveLockSeatIdsByBusAndDateAsync(id, journeyDate.Date);
+        Guid? viewerId = null;
+        var sub = User.FindFirst(ClaimTypes.NameIdentifier) ?? User.FindFirst("sub");
+        if (sub != null && Guid.TryParse(sub.Value, out var uid))
+            viewerId = uid;
+
+        var lockedByOthers = await _unitOfWork.SeatLocks
+            .GetActiveLockSeatIdsByBusAndDateAsync(id, journeyDate.Date, exceptUserId: viewerId);
+        var lockedByOthersSet = lockedByOthers.ToHashSet();
 
         var seats = bus.Seats.Where(s => s.IsActive).Select(s => new BusBooking.Application.DTOs.Booking.SeatDto
         {
@@ -355,8 +395,8 @@ public class BusController : ControllerBase
             Column = s.Column,
             Deck = s.Deck,
             SeatType = s.SeatType.ToString(),
-            IsAvailable = !bookedSeatIds.Contains(s.Id) && !lockedSeatIds.Contains(s.Id),
-            IsLocked = lockedSeatIds.Contains(s.Id)
+            IsAvailable = !bookedSeatIds.Contains(s.Id) && !lockedByOthersSet.Contains(s.Id),
+            IsLocked = lockedByOthersSet.Contains(s.Id)
         });
 
         return Ok(seats);

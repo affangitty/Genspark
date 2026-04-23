@@ -66,6 +66,7 @@ public class BusRepository : IBusRepository
             .Include(b => b.Operator)
             .Include(b => b.Layout)
             .Include(b => b.Route)
+            .Include(b => b.Seats)
             .Where(b => b.RouteId == routeId)
             .ToListAsync();
 
@@ -155,9 +156,58 @@ public class BookingRepository : IBookingRepository
         await _context.Bookings
             .Include(b => b.User)
             .Include(b => b.Passengers)
+            .Include(b => b.Payment)
+            .Include(b => b.Cancellation)
             .Where(b => b.BusId == busId
                 && b.JourneyDate > DateTime.UtcNow
                 && b.Status == BookingStatus.Confirmed)
+            .ToListAsync();
+
+    public async Task<IEnumerable<Booking>> GetUpcomingByUserIdAsync(Guid userId, DateTime currentTimeUtc) =>
+        await _context.Bookings
+            .Include(b => b.Bus).ThenInclude(bus => bus.Route)
+            .Include(b => b.Bus).ThenInclude(bus => bus.Operator)
+            .Include(b => b.Passengers).ThenInclude(p => p.Seat)
+            .Include(b => b.Payment)
+            .Where(b => b.UserId == userId
+                && b.JourneyDate >= currentTimeUtc
+                && b.Status == BookingStatus.Confirmed)
+            .OrderBy(b => b.JourneyDate)
+            .ToListAsync();
+
+    public async Task<IEnumerable<Booking>> GetPastByUserIdAsync(Guid userId, DateTime currentTimeUtc) =>
+        await _context.Bookings
+            .Include(b => b.Bus).ThenInclude(bus => bus.Route)
+            .Include(b => b.Bus).ThenInclude(bus => bus.Operator)
+            .Include(b => b.Passengers).ThenInclude(p => p.Seat)
+            .Include(b => b.Payment)
+            .Where(b => b.UserId == userId
+                && b.JourneyDate < currentTimeUtc
+                && b.Status == BookingStatus.Confirmed)
+            .OrderByDescending(b => b.JourneyDate)
+            .ToListAsync();
+
+    public async Task<IEnumerable<Booking>> GetCancelledByUserIdAsync(Guid userId) =>
+        await _context.Bookings
+            .Include(b => b.Bus).ThenInclude(bus => bus.Route)
+            .Include(b => b.Bus).ThenInclude(bus => bus.Operator)
+            .Include(b => b.Passengers).ThenInclude(p => p.Seat)
+            .Include(b => b.Payment)
+            .Include(b => b.Cancellation)
+            .Where(b => b.UserId == userId
+                && (b.Status == BookingStatus.Cancelled || b.Status == BookingStatus.CancelledByAdmin))
+            .OrderByDescending(b => b.UpdatedAt)
+            .ToListAsync();
+
+    public async Task<IEnumerable<Booking>> GetByOperatorIdAsync(Guid operatorId) =>
+        await _context.Bookings
+            .Include(b => b.User)
+            .Include(b => b.Bus).ThenInclude(bus => bus.Route)
+            .Include(b => b.Passengers).ThenInclude(p => p.Seat)
+            .Include(b => b.Payment)
+            .Include(b => b.Cancellation)
+            .Where(b => b.Bus.OperatorId == operatorId)
+            .OrderByDescending(b => b.JourneyDate)
             .ToListAsync();
 
     public async Task<Booking?> GetByReferenceAsync(string bookingReference) =>
@@ -182,6 +232,15 @@ public class BookingRepository : IBookingRepository
 
     public async Task AddAsync(Booking booking) =>
         await _context.Bookings.AddAsync(booking);
+
+    public async Task AddPassengerAsync(BookingPassenger passenger) =>
+        await _context.BookingPassengers.AddAsync(passenger);
+
+    public async Task AddPaymentAsync(Payment payment) =>
+        await _context.Payments.AddAsync(payment);
+
+    public async Task AddCancellationAsync(Cancellation cancellation) =>
+        await _context.Cancellations.AddAsync(cancellation);
 
     public void Update(Booking booking) =>
         _context.Bookings.Update(booking);
@@ -340,14 +399,17 @@ public class SeatLockRepository : ISeatLockRepository
     public SeatLockRepository(AppDbContext context) => _context = context;
 
     public async Task<IEnumerable<Guid>> GetActiveLockSeatIdsByBusAndDateAsync(
-        Guid busId, DateTime journeyDate) =>
-        await _context.SeatLocks
+        Guid busId, DateTime journeyDate, Guid? exceptUserId = null)
+    {
+        var q = _context.SeatLocks
             .Where(sl => sl.BusId == busId
                 && sl.JourneyDate.Date == journeyDate.Date
                 && !sl.IsReleased
-                && sl.ExpiresAt > DateTime.UtcNow)
-            .Select(sl => sl.SeatId)
-            .ToListAsync();
+                && sl.ExpiresAt > DateTime.UtcNow);
+        if (exceptUserId.HasValue)
+            q = q.Where(sl => sl.UserId != exceptUserId.Value);
+        return await q.Select(sl => sl.SeatId).ToListAsync();
+    }
 
     public async Task<SeatLock?> GetActiveLockAsync(Guid seatId, DateTime journeyDate) =>
         await _context.SeatLocks
@@ -361,6 +423,25 @@ public class SeatLockRepository : ISeatLockRepository
 
     public void Update(SeatLock seatLock) =>
         _context.SeatLocks.Update(seatLock);
+
+    public async Task ReleaseLocksForSeatsAsync(IEnumerable<Guid> seatIds, DateTime journeyDate)
+    {
+        var targetIds = seatIds.ToHashSet();
+        if (targetIds.Count == 0)
+            return;
+
+        var activeLocks = await _context.SeatLocks
+            .Where(sl => targetIds.Contains(sl.SeatId)
+                && sl.JourneyDate.Date == journeyDate.Date
+                && !sl.IsReleased
+                && sl.ExpiresAt > DateTime.UtcNow)
+            .ToListAsync();
+
+        foreach (var seatLock in activeLocks)
+        {
+            seatLock.IsReleased = true;
+        }
+    }
 
     public async Task DeleteExpiredLocksAsync()
     {

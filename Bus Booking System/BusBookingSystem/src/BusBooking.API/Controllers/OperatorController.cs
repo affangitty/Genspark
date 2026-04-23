@@ -27,8 +27,9 @@ public class OperatorController : ControllerBase
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] OperatorRegistrationRequestDto request)
     {
-        // Check duplicate email
-        var existing = await _unitOfWork.BusOperators.GetByEmailAsync(request.Email);
+        var email = request.Email.ToLower().Trim();
+
+        var existing = await _unitOfWork.BusOperators.GetByEmailAsync(email);
         if (existing != null)
             return Conflict(new { message = "Email is already registered." });
 
@@ -39,7 +40,7 @@ public class OperatorController : ControllerBase
         {
             CompanyName = request.CompanyName,
             ContactPersonName = request.ContactPersonName,
-            Email = request.Email.ToLower().Trim(),
+            Email = email,
             PhoneNumber = request.PhoneNumber,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
             Status = OperatorStatus.Pending

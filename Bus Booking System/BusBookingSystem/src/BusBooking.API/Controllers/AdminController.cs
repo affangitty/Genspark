@@ -123,19 +123,47 @@ public class AdminController : ControllerBase
 
         // Cancel all future bookings on operator's buses
         var futureCancelledCount = 0;
+        decimal totalRefunded = 0m;
         foreach (var bus in op.Buses)
         {
             var futureBookings = await _unitOfWork.Bookings.GetFutureBookingsByBusIdAsync(bus.Id);
             foreach (var booking in futureBookings)
             {
+                if (booking.Cancellation != null)
+                    continue;
+
                 booking.Status = Domain.Enums.BookingStatus.CancelledByAdmin;
                 _unitOfWork.Bookings.Update(booking);
                 futureCancelledCount++;
+                var refundAmount = booking.TotalAmount;
+                totalRefunded += refundAmount;
 
-                // Notify user
-                await _mailService.SendOperatorDisabledNoticeAsync(
+                var cancellation = new BusBooking.Domain.Entities.Cancellation
+                {
+                    BookingId = booking.Id,
+                    CancelledAt = DateTime.UtcNow,
+                    Reason = $"Cancelled by admin due to operator disablement: {request.Reason}",
+                    RefundPercentage = 100m,
+                    RefundAmount = refundAmount,
+                    IsAdminInitiated = true
+                };
+                await _unitOfWork.Bookings.AddCancellationAsync(cancellation);
+
+                if (booking.Payment != null)
+                {
+                    booking.Payment.RefundAmount = refundAmount;
+                    booking.Payment.RefundedAt = DateTime.UtcNow;
+                    booking.Payment.Status = PaymentStatus.Refunded;
+                }
+
+                var passengerSeatIds = booking.Passengers.Select(p => p.SeatId).ToList();
+                await _unitOfWork.SeatLocks.ReleaseLocksForSeatsAsync(passengerSeatIds, booking.JourneyDate.Date);
+
+                // Notify user of cancellation + refund
+                await _mailService.SendCancellationNoticeAsync(
                     booking.User.Email,
-                    op.CompanyName);
+                    booking.BookingReference,
+                    refundAmount);
             }
         }
 
@@ -151,7 +179,8 @@ public class AdminController : ControllerBase
         return Ok(new
         {
             message = "Operator disabled successfully.",
-            bookingsCancelled = futureCancelledCount
+            bookingsCancelled = futureCancelledCount,
+            totalRefunded
         });
     }
 
@@ -241,6 +270,12 @@ public class AdminController : ControllerBase
     public async Task<IActionResult> UpdatePlatformConfig(
         [FromBody] BusBooking.Application.DTOs.Admin.PlatformConfigDto request)
     {
+        if (request.ConvenienceFeePercentage < 0 || request.ConvenienceFeePercentage > 100)
+            return BadRequest(new { message = "Convenience fee percentage must be between 0 and 100." });
+
+        if (request.SeatLockDurationMinutes < 1 || request.SeatLockDurationMinutes > 120)
+            return BadRequest(new { message = "Seat lock duration must be between 1 and 120 minutes." });
+
         var adminIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)
             ?? User.FindFirst("sub");
         if (adminIdClaim == null) return Unauthorized();
@@ -257,6 +292,99 @@ public class AdminController : ControllerBase
         await _unitOfWork.SaveChangesAsync();
 
         return Ok(new { message = "Platform config updated successfully." });
+    }
+
+    /// <summary>
+    /// Admin revenue dashboard with overall and per-operator stats
+    /// </summary>
+    [HttpGet("revenue-dashboard")]
+    public async Task<IActionResult> GetRevenueDashboard()
+    {
+        var operators = await _unitOfWork.BusOperators.GetAllAsync();
+        var operatorRevenue = new List<AdminOperatorRevenueDto>();
+
+        foreach (var op in operators)
+        {
+            var bookings = (await _unitOfWork.Bookings.GetByOperatorIdAsync(op.Id)).ToList();
+            var confirmedBookings = bookings.Count(b => b.Status == BookingStatus.Confirmed);
+            var cancelledBookings = bookings.Count(b => b.Status == BookingStatus.Cancelled || b.Status == BookingStatus.CancelledByAdmin);
+            var grossRevenue = bookings
+                .Where(b => b.Status == BookingStatus.Confirmed)
+                .Sum(b => b.TotalAmount);
+            var totalRefunds = bookings.Sum(b => b.Cancellation?.RefundAmount ?? 0m);
+
+            operatorRevenue.Add(new AdminOperatorRevenueDto
+            {
+                OperatorId = op.Id,
+                OperatorName = op.CompanyName,
+                TotalBookings = bookings.Count,
+                ConfirmedBookings = confirmedBookings,
+                CancelledBookings = cancelledBookings,
+                GrossRevenue = grossRevenue,
+                TotalRefunds = totalRefunds,
+                NetRevenue = grossRevenue - totalRefunds
+            });
+        }
+
+        var dashboard = new AdminRevenueDashboardDto
+        {
+            TotalGrossRevenue = operatorRevenue.Sum(o => o.GrossRevenue),
+            TotalRefunds = operatorRevenue.Sum(o => o.TotalRefunds),
+            TotalBookings = operatorRevenue.Sum(o => o.TotalBookings),
+            ConfirmedBookings = operatorRevenue.Sum(o => o.ConfirmedBookings),
+            CancelledBookings = operatorRevenue.Sum(o => o.CancelledBookings),
+            OperatorRevenue = operatorRevenue.OrderByDescending(o => o.NetRevenue).ToList()
+        };
+        dashboard.TotalNetRevenue = dashboard.TotalGrossRevenue - dashboard.TotalRefunds;
+
+        return Ok(dashboard);
+    }
+
+    /// <summary>
+    /// Unified approval queue for pending operators and buses
+    /// </summary>
+    [HttpGet("approvals/queue")]
+    public async Task<IActionResult> GetUnifiedApprovalQueue()
+    {
+        var pendingOperators = await _unitOfWork.BusOperators.GetByStatusAsync(OperatorStatus.Pending);
+        var pendingBuses = await _unitOfWork.Buses.GetByStatusAsync(BusStatus.PendingApproval);
+
+        var operatorItems = pendingOperators.Select(o => new ApprovalQueueItemDto
+        {
+            Type = "Operator",
+            Id = o.Id,
+            DisplayName = o.CompanyName,
+            RequestedBy = o.ContactPersonName,
+            RequestedAt = o.CreatedAt,
+            Status = o.Status.ToString(),
+            AdditionalContext = o.Email
+        });
+
+        var busItems = pendingBuses.Select(b => new ApprovalQueueItemDto
+        {
+            Type = "Bus",
+            Id = b.Id,
+            DisplayName = $"{b.BusNumber} - {b.BusName}",
+            RequestedBy = b.Operator?.CompanyName ?? "Unknown Operator",
+            RequestedAt = b.CreatedAt,
+            Status = b.Status.ToString(),
+            AdditionalContext = b.Route != null
+                ? $"{b.Route.SourceCity} -> {b.Route.DestinationCity}"
+                : "Route not assigned"
+        });
+
+        var queue = operatorItems
+            .Concat(busItems)
+            .OrderBy(item => item.RequestedAt)
+            .ToList();
+
+        return Ok(new
+        {
+            totalPending = queue.Count,
+            pendingOperators = operatorItems.Count(),
+            pendingBuses = busItems.Count(),
+            items = queue
+        });
     }
 
     /// <summary>

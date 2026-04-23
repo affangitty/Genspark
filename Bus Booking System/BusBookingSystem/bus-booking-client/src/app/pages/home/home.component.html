@@ -1,0 +1,95 @@
+<div class="app-hero shadow">
+  <h1 class="h3 fw-bold mb-2">Where are you headed?</h1>
+  <p class="mb-0 opacity-75">Search approved routes, compare fares, and continue to seat selection.</p>
+</div>
+
+<div class="card app-card border-0 mb-4">
+  <div class="card-body p-4">
+    <h2 class="h5 fw-semibold mb-3 text-body-secondary">Search buses</h2>
+    <form [formGroup]="searchForm" (ngSubmit)="search()">
+      <div class="row g-3">
+        <div class="col-md-6 col-lg-3">
+          <label class="form-label" for="sourceCity">From</label>
+          <input
+            id="sourceCity"
+            class="form-control"
+            type="text"
+            list="sourceList"
+            formControlName="sourceCity"
+            placeholder="City"
+            (input)="onSourceInput()"
+          />
+          <datalist id="sourceList">
+            @for (item of sourceSuggestions; track item) {
+              <option [value]="item"></option>
+            }
+          </datalist>
+        </div>
+        <div class="col-md-6 col-lg-3">
+          <label class="form-label" for="destCity">To</label>
+          <input
+            id="destCity"
+            class="form-control"
+            type="text"
+            list="destinationList"
+            formControlName="destinationCity"
+            placeholder="City"
+          />
+          <datalist id="destinationList">
+            @for (item of destinationSuggestions; track item) {
+              <option [value]="item"></option>
+            }
+          </datalist>
+        </div>
+        <div class="col-md-6 col-lg-3">
+          <label class="form-label" for="journeyDate">Journey date</label>
+          <input id="journeyDate" class="form-control" type="date" formControlName="journeyDate" />
+        </div>
+        <div class="col-md-6 col-lg-2">
+          <label class="form-label" for="pax">Passengers</label>
+          <input id="pax" class="form-control" type="number" min="1" formControlName="passengerCount" />
+        </div>
+        <div class="col-md-6 col-lg-1 d-flex align-items-end">
+          <button type="submit" class="btn btn-primary w-100" [disabled]="loading">
+            @if (loading) {
+              <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+            } @else {
+              Search
+            }
+          </button>
+        </div>
+      </div>
+    </form>
+
+    @if (error) {
+      <div class="alert alert-danger mt-3 mb-0" role="alert">{{ error }}</div>
+    }
+  </div>
+</div>
+
+@if (buses.length > 0) {
+  <h2 class="h5 fw-semibold mb-3">Available buses</h2>
+  <div class="row g-3">
+    @for (bus of buses; track bus.id) {
+      <div class="col-md-6 col-xl-4">
+        <div class="card app-card border-0 h-100">
+          <div class="card-body d-flex flex-column">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+              <span class="badge bg-primary-subtle text-primary">{{ bus.busNumber }}</span>
+              <span class="text-success fw-semibold">₹{{ bus.totalFare }}</span>
+            </div>
+            <h3 class="h6 fw-bold mb-1">{{ bus.busName }}</h3>
+            <p class="small text-muted mb-2">
+              {{ bus.sourceCity }} → {{ bus.destinationCity }}
+            </p>
+            <p class="small mb-3">
+              <span class="text-secondary">Seats:</span>
+              {{ bus.availableSeats }} / {{ bus.totalSeats }} available
+            </p>
+            <button type="button" class="btn btn-primary mt-auto" (click)="selectBus(bus)">Select seats</button>
+          </div>
+        </div>
+      </div>
+    }
+  </div>
+}

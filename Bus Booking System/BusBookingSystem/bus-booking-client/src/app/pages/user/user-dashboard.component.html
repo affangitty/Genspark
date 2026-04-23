@@ -1,0 +1,62 @@
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+  <div>
+    <h1 class="h3 fw-bold mb-1">My bookings</h1>
+    <p class="text-muted small mb-0">Upcoming trips, history, and cancellations.</p>
+  </div>
+  <ul class="nav nav-pills">
+    <li class="nav-item">
+      <button type="button" class="nav-link" [class.active]="tab === 'upcoming'" (click)="setTab('upcoming')">Upcoming</button>
+    </li>
+    <li class="nav-item">
+      <button type="button" class="nav-link" [class.active]="tab === 'past'" (click)="setTab('past')">Past</button>
+    </li>
+    <li class="nav-item">
+      <button type="button" class="nav-link" [class.active]="tab === 'cancelled'" (click)="setTab('cancelled')">Cancelled</button>
+    </li>
+  </ul>
+</div>
+
+@if (message) {
+  <div class="alert alert-success" role="status">{{ message }}</div>
+}
+@if (error) {
+  <div class="alert alert-danger" role="alert">{{ error }}</div>
+}
+
+<div class="card app-card border-0">
+  <div class="card-body p-0">
+    @if (loading) {
+      <div class="text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Loading…</span>
+        </div>
+        <p class="text-muted small mt-2 mb-0">Loading bookings…</p>
+      </div>
+    } @else {
+      <ul class="list-group list-group-flush">
+        @for (booking of bookings; track booking.id) {
+          <li class="list-group-item px-4 py-3">
+            <div class="row align-items-center g-3">
+              <div class="col-md-8">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <span class="badge bg-secondary-subtle text-secondary">{{ booking.status }}</span>
+                  <strong class="text-body">{{ booking.bookingReference }}</strong>
+                </div>
+                <p class="mb-1 fw-medium">{{ booking.busNumber }} · {{ booking.sourceCity }} → {{ booking.destinationCity }}</p>
+                <p class="small text-muted mb-0">{{ booking.journeyDate | date: 'mediumDate' }}</p>
+              </div>
+              <div class="col-md-4 text-md-end">
+                <p class="fw-semibold text-success mb-2 mb-md-0">₹{{ booking.totalAmount }}</p>
+                @if (tab === 'upcoming' && booking.status === 'Confirmed') {
+                  <button type="button" class="btn btn-outline-danger btn-sm" (click)="cancel(booking)">Cancel booking</button>
+                }
+              </div>
+            </div>
+          </li>
+        } @empty {
+          <li class="list-group-item text-center text-muted py-5">No bookings in this tab.</li>
+        }
+      </ul>
+    }
+  </div>
+</div>

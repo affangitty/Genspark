@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import * as signalR from '@microsoft/signalr';
 import { environment } from '../../../environments/environment';
+import { AuthService } from './auth.service';
 
 @Injectable({
   providedIn: 'root'
@@ -8,50 +9,68 @@ import { environment } from '../../../environments/environment';
 export class SignalRService {
   private hubConnection: signalR.HubConnection | null = null;
 
-  constructor() { }
+  constructor(private authService: AuthService) { }
 
-  startConnection(): void {
+  async startConnection(): Promise<void> {
+    if (this.hubConnection && this.hubConnection.state !== signalR.HubConnectionState.Disconnected) {
+      return;
+    }
+
     this.hubConnection = new signalR.HubConnectionBuilder()
-      .withUrl(`${environment.signalRUrl}/seats`)
+      .withUrl(`${environment.signalRUrl}/seats`, {
+        accessTokenFactory: () => this.authService.getToken() ?? ''
+      })
       .withAutomaticReconnect()
       .build();
 
-    this.hubConnection.start().catch(err => console.error('Error starting connection: ' + err));
+    await this.hubConnection.start();
   }
 
-  stopConnection(): void {
+  async stopConnection(): Promise<void> {
     if (this.hubConnection) {
-      this.hubConnection.stop();
+      await this.hubConnection.stop();
+      this.hubConnection = null;
     }
   }
 
-  lockSeat(seatId: string, busId: string): void {
+  async lockSeat(busId: string, seatId: string, journeyDate: string): Promise<boolean> {
     if (this.hubConnection) {
-      this.hubConnection.invoke('LockSeat', seatId, busId).catch(err => console.error(err));
+      return this.hubConnection.invoke('LockSeat', busId, seatId, journeyDate);
+    }
+    return false;
+  }
+
+  async unlockSeat(busId: string, seatId: string, journeyDate: string): Promise<boolean> {
+    if (this.hubConnection) {
+      return this.hubConnection.invoke('UnlockSeat', busId, seatId, journeyDate);
+    }
+    return false;
+  }
+
+  async extendLock(seatId: string, journeyDate: string, additionalSeconds = 300): Promise<boolean> {
+    if (this.hubConnection) {
+      return this.hubConnection.invoke('ExtendLock', seatId, journeyDate, additionalSeconds);
+    }
+    return false;
+  }
+
+  async joinBus(busId: string, journeyDate: string): Promise<void> {
+    if (this.hubConnection) {
+      await this.hubConnection.invoke('JoinBusGroup', busId, journeyDate);
     }
   }
 
-  unlockSeat(seatId: string, busId: string): void {
+  async leaveBus(busId: string, journeyDate: string): Promise<void> {
     if (this.hubConnection) {
-      this.hubConnection.invoke('UnlockSeat', seatId, busId).catch(err => console.error(err));
-    }
-  }
-
-  joinBus(busId: string): void {
-    if (this.hubConnection) {
-      this.hubConnection.invoke('JoinBus', busId).catch(err => console.error(err));
+      await this.hubConnection.invoke('LeaveBusGroup', busId, journeyDate);
     }
   }
 
   onSeatLocked(callback: (seatId: string, userId: string) => void): void {
-    if (this.hubConnection) {
-      this.hubConnection.on('seatLocked', callback);
-    }
+    this.hubConnection?.on('SeatLocked', callback);
   }
 
   onSeatUnlocked(callback: (seatId: string) => void): void {
-    if (this.hubConnection) {
-      this.hubConnection.on('seatUnlocked', callback);
-    }
+    this.hubConnection?.on('SeatUnlocked', callback);
   }
 }

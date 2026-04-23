@@ -1,0 +1,50 @@
+<div class="row justify-content-center">
+  <div class="col-12 col-md-8 col-lg-5 col-xl-4">
+    <div class="card app-card border-0 shadow">
+      <div class="card-body p-4 p-md-5">
+        <h1 class="h4 fw-bold mb-1">Welcome back</h1>
+        <p class="text-muted small mb-4">Sign in to continue booking and manage trips.</p>
+
+        <div class="btn-group w-100 mb-4" role="group" aria-label="Account type">
+          <input type="radio" class="btn-check" name="role" id="roleUser" value="User" [(ngModel)]="role" />
+          <label class="btn btn-outline-primary" for="roleUser">User</label>
+          <input type="radio" class="btn-check" name="role" id="roleOp" value="Operator" [(ngModel)]="role" />
+          <label class="btn btn-outline-primary" for="roleOp">Operator</label>
+          <input type="radio" class="btn-check" name="role" id="roleAd" value="Admin" [(ngModel)]="role" />
+          <label class="btn btn-outline-primary" for="roleAd">Admin</label>
+        </div>
+
+        <form [formGroup]="form" (ngSubmit)="submit()">
+          <div class="mb-3">
+            <label class="form-label" for="loginEmail">Email</label>
+            <input id="loginEmail" type="email" class="form-control form-control-lg" formControlName="email" autocomplete="username" />
+          </div>
+          <div class="mb-4">
+            <label class="form-label" for="loginPw">Password</label>
+            <input id="loginPw" type="password" class="form-control form-control-lg" formControlName="password" autocomplete="current-password" />
+          </div>
+          <button type="submit" class="btn btn-primary btn-lg w-100" [disabled]="loading">
+            @if (loading) {
+              <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+              Signing in…
+            } @else {
+              Sign in
+            }
+          </button>
+        </form>
+
+        @if (error) {
+          <div class="alert alert-danger mt-3 mb-0 small" role="alert">{{ error }}</div>
+        }
+
+        <hr class="my-4" />
+        <p class="small text-muted text-center mb-0">
+          New here?
+          <a routerLink="/auth/register" class="fw-semibold">Create user account</a>
+          ·
+          <a routerLink="/auth/operator-register" class="fw-semibold">Operator signup</a>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>

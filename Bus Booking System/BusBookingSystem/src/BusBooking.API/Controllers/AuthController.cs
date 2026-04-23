@@ -27,8 +27,10 @@ public class AuthController : ControllerBase
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterRequestDto request)
     {
-        // Check if email already exists
-        var existingUser = await _unitOfWork.Users.GetByEmailAsync(request.Email);
+        var email = request.Email.ToLower().Trim();
+
+        // Must match stored email (lowercase); otherwise mixed-case re-register bypasses this and hits DB unique index → 500
+        var existingUser = await _unitOfWork.Users.GetByEmailAsync(email);
         if (existingUser != null)
             return Conflict(new { message = "Email is already registered." });
 
@@ -39,7 +41,7 @@ public class AuthController : ControllerBase
         var user = new User
         {
             FullName = request.FullName,
-            Email = request.Email.ToLower().Trim(),
+            Email = email,
             PhoneNumber = request.PhoneNumber,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
             Role = UserRole.User,
@@ -175,5 +177,66 @@ public class AuthController : ControllerBase
         await _unitOfWork.SaveChangesAsync();
 
         return Ok(new { message = "Password changed successfully." });
+    }
+
+    /// <summary>Exchange a refresh JWT for a new access + refresh token pair.</summary>
+    [HttpPost("refresh")]
+    [AllowAnonymous]
+    public async Task<IActionResult> Refresh(
+        [FromBody] RefreshTokenRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.RefreshToken))
+            return BadRequest(new ProblemDetails { Title = "Invalid request", Detail = "Refresh token is required." });
+
+        var parsed = _jwtService.ParseRefreshToken(request.RefreshToken.Trim());
+        if (parsed == null)
+            return Unauthorized(new ProblemDetails { Title = "Unauthorized", Detail = "Invalid or expired refresh token." });
+
+        var (userId, email, role) = parsed.Value;
+
+        if (role == "User" || role == "Admin")
+        {
+            var user = await _unitOfWork.Users.GetByIdAsync(userId);
+            if (user == null || user.Email != email)
+                return Unauthorized(new ProblemDetails { Title = "Unauthorized", Detail = "User no longer valid." });
+            if (!user.IsActive)
+                return Unauthorized(new ProblemDetails { Title = "Unauthorized", Detail = "Account is deactivated." });
+
+            var pair = _jwtService.GenerateTokenPair(user.Id, user.Email, user.Role.ToString());
+            return Ok(new LoginResponseDto
+            {
+                UserId = user.Id,
+                Email = user.Email,
+                FullName = user.FullName,
+                Role = user.Role.ToString(),
+                AccessToken = pair.accessToken,
+                RefreshToken = pair.refreshToken,
+                ExpiresAt = DateTime.UtcNow.AddMinutes(60)
+            });
+        }
+
+        if (role == "Operator")
+        {
+            var op = await _unitOfWork.BusOperators.GetByIdAsync(userId);
+            if (op == null || op.Email != email)
+                return Unauthorized(new ProblemDetails { Title = "Unauthorized", Detail = "Operator no longer valid." });
+            if (op.Status != OperatorStatus.Approved)
+                return Unauthorized(new ProblemDetails { Title = "Unauthorized", Detail = "Operator account is not approved." });
+
+            var pair = _jwtService.GenerateTokenPair(op.Id, op.Email, "Operator");
+            return Ok(new LoginResponseDto
+            {
+                UserId = op.Id,
+                Email = op.Email,
+                FullName = op.CompanyName,
+                Role = "Operator",
+                AccessToken = pair.accessToken,
+                RefreshToken = pair.refreshToken,
+                ExpiresAt = DateTime.UtcNow.AddMinutes(60)
+            });
+        }
+
+        return Unauthorized(new ProblemDetails { Title = "Unauthorized", Detail = "Unknown role in refresh token." });
     }
 }

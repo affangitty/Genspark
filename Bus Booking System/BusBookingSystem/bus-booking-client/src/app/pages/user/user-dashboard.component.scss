@@ -1,0 +1,22 @@
+:host {
+  display: block;
+}
+
+.nav-pills .nav-link {
+  border: 0;
+  background: transparent;
+  color: var(--bs-secondary);
+  border-radius: 2rem;
+  padding: 0.4rem 1rem;
+  font-size: 0.875rem;
+}
+
+.nav-pills .nav-link.active {
+  background: var(--bs-primary);
+  color: #fff;
+}
+
+.nav-pills .nav-link:hover:not(.active) {
+  background: rgba(var(--bs-primary-rgb), 0.08);
+  color: var(--bs-primary);
+}

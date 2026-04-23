@@ -295,6 +295,61 @@ namespace BusBooking.Infrastructure.Persistence.Migrations
                     b.ToTable("BusOperators");
                 });
 
+            modelBuilder.Entity("BusBooking.Domain.Entities.BusRouteAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AdminNotes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<TimeSpan>("ArrivalTime")
+                        .HasColumnType("interval");
+
+                    b.Property<decimal>("BaseFare")
+                        .HasColumnType("decimal(10,2)");
+
+                    b.Property<Guid>("BusId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<TimeSpan>("DepartureTime")
+                        .HasColumnType("interval");
+
+                    b.Property<int>("DurationMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsApproved")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsRejected")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("OperatorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("RouteId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BusId");
+
+                    b.HasIndex("RouteId");
+
+                    b.ToTable("BusRouteAssignments");
+                });
+
             modelBuilder.Entity("BusBooking.Domain.Entities.Cancellation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -710,6 +765,25 @@ namespace BusBooking.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Operator");
+                });
+
+            modelBuilder.Entity("BusBooking.Domain.Entities.BusRouteAssignment", b =>
+                {
+                    b.HasOne("BusBooking.Domain.Entities.Bus", "Bus")
+                        .WithMany()
+                        .HasForeignKey("BusId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BusBooking.Domain.Entities.Route", "Route")
+                        .WithMany()
+                        .HasForeignKey("RouteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Bus");
+
+                    b.Navigation("Route");
                 });
 
             modelBuilder.Entity("BusBooking.Domain.Entities.Cancellation", b =>

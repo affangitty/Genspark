@@ -1,1 +1,45 @@
-/* You can add global styles to this file, and also import other style files */
+/* Bootstrap + app theme */
+$primary: #0d6efd;
+$secondary: #64748b;
+$success: #059669;
+$danger: #dc2626;
+$font-family-sans-serif: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+@import 'bootstrap/scss/bootstrap';
+
+:root {
+  --app-radius: 0.75rem;
+  --app-shadow: 0 4px 24px rgba(15, 23, 42, 0.08);
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+}
+
+.app-card {
+  border-radius: var(--app-radius);
+  box-shadow: var(--app-shadow);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.app-hero {
+  background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0d6efd 100%);
+  color: #fff;
+  border-radius: var(--app-radius);
+  padding: 2rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.seat-grid-bs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  max-width: 42rem;
+}
+
+.seat-btn {
+  min-width: 2.75rem;
+  height: 2.75rem;
+  font-weight: 600;
+  font-size: 0.8rem;
+}

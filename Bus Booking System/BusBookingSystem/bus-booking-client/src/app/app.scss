@@ -1,0 +1,12 @@
+:host {
+  display: block;
+}
+
+.navbar-nav .nav-link.active {
+  font-weight: 600;
+  opacity: 1;
+}
+
+.navbar-nav .nav-link {
+  opacity: 0.9;
+}

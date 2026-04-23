@@ -1,0 +1,175 @@
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h1 class="h3 fw-bold mb-1">Admin</h1>
+    <p class="text-muted small mb-0">Revenue, approvals, fees, and routes.</p>
+  </div>
+  @if (loading) {
+    <div class="d-flex align-items-center gap-2 text-muted small">
+      <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+      Refreshing…
+    </div>
+  }
+</div>
+
+@if (revenue) {
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-4 col-xl-2">
+      <div class="card app-card border-0 h-100 text-center p-3">
+        <p class="small text-muted mb-1">Bookings</p>
+        <p class="h4 fw-bold mb-0">{{ revenue.totalBookings }}</p>
+      </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+      <div class="card app-card border-0 h-100 text-center p-3">
+        <p class="small text-muted mb-1">Cancelled</p>
+        <p class="h4 fw-bold mb-0">{{ revenue.cancelledBookings }}</p>
+      </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+      <div class="card app-card border-0 h-100 text-center p-3">
+        <p class="small text-muted mb-1">Gross</p>
+        <p class="h4 fw-bold mb-0">₹{{ revenue.totalGrossRevenue }}</p>
+      </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+      <div class="card app-card border-0 h-100 text-center p-3">
+        <p class="small text-muted mb-1">Refunds</p>
+        <p class="h4 fw-bold mb-0">₹{{ revenue.totalRefunds }}</p>
+      </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+      <div class="card app-card border-0 h-100 text-center p-3 bg-success-subtle">
+        <p class="small text-success mb-1">Net</p>
+        <p class="h4 fw-bold text-success mb-0">₹{{ revenue.totalNetRevenue }}</p>
+      </div>
+    </div>
+  </div>
+}
+
+<div class="card app-card border-0 mb-4">
+  <div class="card-header bg-white border-bottom py-3">
+    <h2 class="h5 fw-semibold mb-0">Approval queue</h2>
+  </div>
+  <ul class="list-group list-group-flush">
+    @for (item of queue; track item.id) {
+      <li class="list-group-item px-4 py-3">
+        <div class="row align-items-center g-2">
+          <div class="col-md-8">
+            <span class="badge bg-warning-subtle text-warning-emphasis me-2">{{ item.type }}</span>
+            <strong>{{ item.displayName }}</strong>
+            <p class="small text-muted mb-0">By {{ item.requestedBy }} · {{ item.requestedAt | date: 'short' }}</p>
+          </div>
+          <div class="col-md-4 text-md-end">
+            <button type="button" class="btn btn-success btn-sm me-1" (click)="approve(item, true)">Approve</button>
+            <button type="button" class="btn btn-outline-danger btn-sm" (click)="approve(item, false)">Reject</button>
+          </div>
+        </div>
+      </li>
+    } @empty {
+      <li class="list-group-item text-center text-muted py-4">No pending approvals.</li>
+    }
+  </ul>
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-lg-6">
+    <div class="card app-card border-0 h-100">
+      <div class="card-body">
+        <h2 class="h5 fw-semibold mb-3">Platform fees</h2>
+        <form [formGroup]="feeForm" (ngSubmit)="updateFee()">
+          <div class="row g-3">
+            <div class="col-sm-6">
+              <label class="form-label">Convenience fee %</label>
+              <input type="number" class="form-control" formControlName="convenienceFeePercentage" />
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label">Seat lock (minutes)</label>
+              <input type="number" class="form-control" formControlName="seatLockDurationMinutes" />
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary mt-3">Save settings</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card app-card border-0 h-100">
+      <div class="card-body">
+        <h2 class="h5 fw-semibold mb-3">Add route</h2>
+        <form [formGroup]="routeForm" (ngSubmit)="createRoute()">
+          <div class="row g-2">
+            <div class="col-md-6">
+              <input type="text" class="form-control" formControlName="sourceCity" placeholder="Source city" />
+            </div>
+            <div class="col-md-6">
+              <input type="text" class="form-control" formControlName="sourceState" placeholder="Source state" />
+            </div>
+            <div class="col-md-6">
+              <input type="text" class="form-control" formControlName="destinationCity" placeholder="Destination city" />
+            </div>
+            <div class="col-md-6">
+              <input type="text" class="form-control" formControlName="destinationState" placeholder="Destination state" />
+            </div>
+          </div>
+          <button type="submit" class="btn btn-outline-primary mt-3">Add route</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card app-card border-0 mb-4">
+  <div class="card-header bg-white border-bottom py-3">
+    <h2 class="h5 fw-semibold mb-0">Routes</h2>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>From</th>
+            <th>To</th>
+            <th class="text-end">Active</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (route of routes; track route.id) {
+            <tr>
+              <td>{{ route.sourceCity }}, {{ route.sourceState }}</td>
+              <td>{{ route.destinationCity }}, {{ route.destinationState }}</td>
+              <td class="text-end">
+                @if (route.isActive) {
+                  <span class="badge bg-success-subtle text-success">Yes</span>
+                } @else {
+                  <span class="badge bg-secondary-subtle text-secondary">No</span>
+                }
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="3" class="text-muted text-center py-4">No routes yet.</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+@if (revenue) {
+  <div class="card app-card border-0">
+    <div class="card-header bg-white border-bottom py-3">
+      <h2 class="h5 fw-semibold mb-0">Per-operator revenue</h2>
+    </div>
+    <ul class="list-group list-group-flush">
+      @for (row of revenue.operatorRevenue; track row.operatorId) {
+        <li class="list-group-item px-4 d-flex justify-content-between align-items-center">
+          <span>{{ row.operatorName }} <span class="text-muted small">({{ row.totalBookings }} bookings)</span></span>
+          <span class="fw-semibold">₹{{ row.netRevenue }}</span>
+        </li>
+      } @empty {
+        <li class="list-group-item text-muted text-center py-4">No operator revenue yet.</li>
+      }
+    </ul>
+  </div>
+}
