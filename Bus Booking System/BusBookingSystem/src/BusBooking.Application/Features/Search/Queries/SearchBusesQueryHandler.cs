@@ -1,3 +1,4 @@
+using BusBooking.Application.Common;
 using BusBooking.Application.DTOs.Bus;
 using BusBooking.Domain.Enums;
 using BusBooking.Domain.Interfaces;
@@ -23,6 +24,9 @@ public class SearchBusesQueryHandler : IRequestHandler<SearchBusesQuery, List<Bu
 
     public async Task<List<BusResponseDto>> Handle(SearchBusesQuery request, CancellationToken cancellationToken)
     {
+        // Normalize to calendar date so seat/lock queries match stored journey dates (same as other endpoints).
+        var journeyDate = request.JourneyDate.Date;
+
         var allRoutes = await _unitOfWork.Routes.GetAllActiveAsync();
         
         // Fuzzy match on source and destination
@@ -40,12 +44,15 @@ public class SearchBusesQueryHandler : IRequestHandler<SearchBusesQuery, List<Bu
             
             foreach (var bus in buses)
             {
+                if (bus.Operator == null || bus.Seats == null)
+                    continue;
+
                 if (bus.Status != BusStatus.Active || bus.Operator.Status != OperatorStatus.Approved)
                     continue;
 
-                var bookedSeatIds = await _unitOfWork.Bookings.GetBookedSeatIdsByBusAndDateAsync(bus.Id, request.JourneyDate);
+                var bookedSeatIds = await _unitOfWork.Bookings.GetBookedSeatIdsByBusAndDateAsync(bus.Id, journeyDate);
                 var lockedSeatIds = await _unitOfWork.SeatLocks.GetActiveLockSeatIdsByBusAndDateAsync(
-                    bus.Id, request.JourneyDate, exceptUserId: null);
+                    bus.Id, journeyDate, exceptUserId: null);
                 var totalSeats = bus.Seats.Count(s => s.IsActive);
                 var unavailable = bookedSeatIds.Concat(lockedSeatIds).ToHashSet();
                 var availableSeats = totalSeats - unavailable.Count;
@@ -54,11 +61,8 @@ public class SearchBusesQueryHandler : IRequestHandler<SearchBusesQuery, List<Bu
                 if (request.PassengerCount.HasValue && availableSeats < request.PassengerCount)
                     continue;
 
-                // Get platform config for convenience fee
                 var platformConfig = await _unitOfWork.PlatformConfig.GetCurrentAsync();
-                var convenienceFee = platformConfig != null 
-                    ? (bus.BaseFare * platformConfig.ConvenienceFeePercentage) / 100 
-                    : 0;
+                var convenienceFee = PlatformFeeCalculator.ComputeConvenienceForSingleSeat(platformConfig, bus.BaseFare);
 
                 var busDto = new BusResponseDto
                 {

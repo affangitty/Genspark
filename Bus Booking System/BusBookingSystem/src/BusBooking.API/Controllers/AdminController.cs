@@ -167,11 +167,7 @@ public class AdminController : ControllerBase
             }
         }
 
-        // Notify operator
-        await _mailService.SendEmailAsync(
-            op.Email,
-            "Bus Booking — Account Disabled",
-            $"Your operator account has been disabled. Reason: {request.Reason}");
+        await _mailService.SendOperatorDisabledNoticeAsync(op.Email, op.CompanyName, request.Reason);
 
         _unitOfWork.BusOperators.Update(op);
         await _unitOfWork.SaveChangesAsync();
@@ -220,7 +216,7 @@ public class AdminController : ControllerBase
         [FromBody] BusBooking.Application.DTOs.Auth.LoginRequestDto request,
         [FromServices] BusBooking.Application.Interfaces.IJwtService jwtService)
     {
-        var admin = await _unitOfWork.Users.GetByEmailAsync(request.Email.ToLower().Trim());
+        var admin = await _unitOfWork.Users.GetByEmailAsync(request.ResolveLoginId().ToLowerInvariant());
 
         if (admin == null || admin.Role != UserRole.Admin)
             return Unauthorized(new { message = "Invalid credentials." });
@@ -253,12 +249,21 @@ public class AdminController : ControllerBase
     public async Task<IActionResult> GetPlatformConfig()
     {
         var config = await _unitOfWork.PlatformConfig.GetCurrentAsync();
+        // Never return 404 here: the admin SPA loads this in forkJoin with approvals; missing row would hide the whole dashboard including pending operators.
         if (config == null)
-            return NotFound(new { message = "Platform config not found." });
+            return Ok(new BusBooking.Application.DTOs.Admin.PlatformConfigDto
+            {
+                ConvenienceFeePercentage = 5,
+                UseFlatConvenienceFee = false,
+                FlatConvenienceFeePerPassenger = 0,
+                SeatLockDurationMinutes = 10
+            });
 
         return Ok(new BusBooking.Application.DTOs.Admin.PlatformConfigDto
         {
             ConvenienceFeePercentage = config.ConvenienceFeePercentage,
+            UseFlatConvenienceFee = config.UseFlatConvenienceFee,
+            FlatConvenienceFeePerPassenger = config.FlatConvenienceFeePerPassenger,
             SeatLockDurationMinutes = config.SeatLockDurationMinutes
         });
     }
@@ -285,6 +290,8 @@ public class AdminController : ControllerBase
             return NotFound(new { message = "Platform config not found." });
 
         config.ConvenienceFeePercentage = request.ConvenienceFeePercentage;
+        config.UseFlatConvenienceFee = request.UseFlatConvenienceFee;
+        config.FlatConvenienceFeePerPassenger = request.FlatConvenienceFeePerPassenger;
         config.SeatLockDurationMinutes = request.SeatLockDurationMinutes;
         config.UpdatedByAdminId = adminIdClaim.Value;
 

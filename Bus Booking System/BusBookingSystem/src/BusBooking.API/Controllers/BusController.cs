@@ -1,9 +1,11 @@
 using System.Security.Claims;
+using BusBooking.Application.Common;
 using BusBooking.Application.DTOs.Bus;
 using BusBooking.Application.Features.Search.Queries;
 using BusBooking.Domain.Entities;
 using BusBooking.Domain.Enums;
 using BusBooking.Domain.Interfaces;
+using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -47,6 +49,11 @@ public class BusController : ControllerBase
 
             var result = await _mediator.Send(query, cancellationToken);
             return Ok(result);
+        }
+        catch (ValidationException)
+        {
+            // Let GlobalExceptionHandlerMiddleware return 400 + ProblemDetails (do not map to 500).
+            throw;
         }
         catch (Exception ex)
         {
@@ -213,8 +220,7 @@ public class BusController : ControllerBase
             return NotFound(new { message = "Bus not found." });
 
         var config = await _unitOfWork.PlatformConfig.GetCurrentAsync();
-        var fee = config?.ConvenienceFeePercentage ?? 5m;
-        var convenienceFee = Math.Round(bus.BaseFare * fee / 100, 2);
+        var convenienceFee = PlatformFeeCalculator.ComputeConvenienceForSingleSeat(config, bus.BaseFare);
 
         return Ok(new BusResponseDto
         {
@@ -247,11 +253,10 @@ public class BusController : ControllerBase
 
         var buses = await _unitOfWork.Buses.GetByOperatorIdAsync(operatorId.Value);
         var config = await _unitOfWork.PlatformConfig.GetCurrentAsync();
-        var fee = config?.ConvenienceFeePercentage ?? 5m;
 
         return Ok(buses.Select(b =>
         {
-            var convenienceFee = Math.Round(b.BaseFare * fee / 100, 2);
+            var convenienceFee = PlatformFeeCalculator.ComputeConvenienceForSingleSeat(config, b.BaseFare);
             return new BusResponseDto
             {
                 Id = b.Id,
@@ -607,8 +612,12 @@ public class BusController : ControllerBase
         if (bus == null || bus.OperatorId != operatorId.Value)
             return NotFound(new { message = "Bus not found." });
 
-        if (bus.Status != BusStatus.Active)
-            return BadRequest(new { message = "Bus must be active before assigning a route." });
+        // Allow pending buses so operators can queue a route request before or after bus approval.
+        if (bus.Status is not (BusStatus.Active or BusStatus.PendingApproval))
+            return BadRequest(new
+            {
+                message = "Route assignment is only available for buses that are approved or awaiting approval (not removed or temporarily unavailable)."
+            });
 
         var route = await _unitOfWork.Routes.GetByIdAsync(request.RouteId);
         if (route == null || !route.IsActive)

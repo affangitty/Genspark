@@ -139,7 +139,7 @@ public class MailService : IMailService
     /// <summary>
     /// Notify operator that their account has been disabled
     /// </summary>
-    public async Task SendOperatorDisabledNoticeAsync(string to, string operatorName, string? alternativeOperators = null)
+    public async Task SendOperatorDisabledNoticeAsync(string to, string operatorName, string reason, string? alternativeOperators = null)
     {
         var subject = "Account Status Update - Bus Booking Platform";
         
@@ -149,6 +149,7 @@ public class MailService : IMailService
         body.AppendLine("<h2>Account Disabled</h2>");
         body.AppendLine($"<p>Dear {operatorName},</p>");
         body.AppendLine($"<p>Your operator account on the Bus Booking Platform has been disabled by the administrator.</p>");
+        body.AppendLine($"<p><strong>Reason:</strong> {WebUtility.HtmlEncode(reason)}</p>");
         body.AppendLine($"<p>If you believe this is an error, please contact our support team immediately.</p>");
         
         if (!string.IsNullOrEmpty(alternativeOperators))

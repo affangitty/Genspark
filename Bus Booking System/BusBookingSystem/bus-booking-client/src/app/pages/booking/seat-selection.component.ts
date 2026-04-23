@@ -113,4 +113,9 @@ export class SeatSelectionComponent implements OnInit, OnDestroy {
     seat.isLocked = locked;
     seat.isAvailable = !locked;
   }
+
+  isLadiesSeat(seat: Seat): boolean {
+    const t = seat.seatType as unknown;
+    return t === 'Ladies' || t === 3 || t === '3';
+  }
 }

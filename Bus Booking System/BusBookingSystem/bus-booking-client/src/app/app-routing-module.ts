@@ -16,7 +16,12 @@ const routes: Routes = [
   { path: 'auth/login', component: LoginComponent },
   { path: 'auth/register', component: RegisterComponent },
   { path: 'auth/operator-register', component: RegisterComponent },
-  { path: 'booking/seat-selection/:busId', component: SeatSelectionComponent },
+  {
+    path: 'booking/seat-selection/:busId',
+    component: SeatSelectionComponent,
+    canActivate: [authGuard, roleGuard],
+    data: { roles: ['User'] }
+  },
   { path: 'booking/flow', component: BookingFlowComponent, canActivate: [authGuard, roleGuard], data: { roles: ['User'] } },
   { path: 'user/dashboard', component: UserDashboardComponent, canActivate: [authGuard, roleGuard], data: { roles: ['User'] } },
   { path: 'operator/dashboard', component: OperatorDashboardComponent, canActivate: [authGuard, roleGuard], data: { roles: ['Operator'] } },
@@ -25,7 +30,12 @@ const routes: Routes = [
 ];
 
 @NgModule({
-  imports: [RouterModule.forRoot(routes)],
+  imports: [
+    RouterModule.forRoot(routes, {
+      // Re-run navigation when clicking the same nav link (e.g. "My bookings" twice) so dashboards can refresh.
+      onSameUrlNavigation: 'reload'
+    })
+  ],
   exports: [RouterModule]
 })
 export class AppRoutingModule { }

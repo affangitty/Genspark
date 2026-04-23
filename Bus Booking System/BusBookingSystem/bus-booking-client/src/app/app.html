@@ -23,7 +23,12 @@
           </li>
           @if (isLoggedIn && user?.role === 'User') {
             <li class="nav-item">
-              <a class="nav-link" routerLink="/user/dashboard" routerLinkActive="active">My bookings</a>
+              <a
+                class="nav-link"
+                routerLink="/user/dashboard"
+                routerLinkActive="active"
+                (click)="onMyBookingsNavClick()"
+                >My bookings</a>
             </li>
           }
           @if (isLoggedIn && user?.role === 'Operator') {

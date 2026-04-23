@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { finalize, timeout } from 'rxjs';
@@ -10,7 +10,7 @@ import { AuthService } from '../../core/services/auth.service';
   styleUrl: './login.component.scss',
   standalone: false
 })
-export class LoginComponent {
+export class LoginComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly cdr = inject(ChangeDetectorRef);
   error = '';
@@ -18,11 +18,30 @@ export class LoginComponent {
   role: 'User' | 'Operator' | 'Admin' = 'User';
 
   form = this.fb.group({
-    email: ['', [Validators.required, Validators.email]],
+    loginId: ['', [Validators.required]],
     password: ['', [Validators.required]]
   });
 
   constructor(private authService: AuthService, private router: Router) {}
+
+  ngOnInit(): void {
+    this.applyLoginValidators();
+  }
+
+  onRoleChange(): void {
+    this.applyLoginValidators();
+  }
+
+  private applyLoginValidators(): void {
+    const c = this.form.get('loginId');
+    if (!c) return;
+    if (this.role === 'User') {
+      c.setValidators([Validators.required, Validators.minLength(3)]);
+    } else {
+      c.setValidators([Validators.required, Validators.email]);
+    }
+    c.updateValueAndValidity({ emitEvent: false });
+  }
 
   private endSubmit(): void {
     this.loading = false;
@@ -37,18 +56,18 @@ export class LoginComponent {
 
     this.loading = true;
     this.error = '';
-    const { email, password } = this.form.getRawValue();
-    if (!email || !password) {
+    const { loginId, password } = this.form.getRawValue();
+    if (!loginId || !password) {
       this.loading = false;
       return;
     }
 
     const request$ =
       this.role === 'Admin'
-        ? this.authService.loginAdmin(email, password)
+        ? this.authService.loginAdmin(loginId, password)
         : this.role === 'Operator'
-        ? this.authService.loginOperator(email, password)
-        : this.authService.loginUser(email, password);
+        ? this.authService.loginOperator(loginId, password)
+        : this.authService.loginUser(loginId, password);
 
     request$.pipe(timeout(20_000), finalize(() => this.endSubmit())).subscribe({
       next: () => {

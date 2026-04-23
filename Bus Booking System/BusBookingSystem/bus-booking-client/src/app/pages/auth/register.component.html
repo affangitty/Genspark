@@ -14,6 +14,13 @@
                 <label class="form-label" for="fullName">Full name</label>
                 <input id="fullName" type="text" class="form-control" formControlName="fullName" />
               </div>
+              <div class="col-md-6">
+                <label class="form-label" for="userName">Username <span class="text-muted">(optional)</span></label>
+                <input id="userName" type="text" class="form-control" formControlName="userName" autocomplete="username" />
+                @if (userForm.get('userName')?.touched && userForm.get('userName')?.invalid) {
+                  <div class="form-text text-danger">3–50 chars: letters, numbers, underscore only.</div>
+                }
+              </div>
             } @else {
               <div class="col-md-6">
                 <label class="form-label" for="company">Company name</label>

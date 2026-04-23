@@ -30,6 +30,48 @@ export class OperatorService {
     return this.http.put(`${this.busApiUrl}/${busId}/fare`, { baseFare });
   }
 
+  createLayout(payload: {
+    layoutName: string;
+    totalSeats: number;
+    rows: number;
+    columns: number;
+    hasUpperDeck: boolean;
+    layoutJson: string;
+  }): Observable<{ id: string; layoutName: string; totalSeats: number; rows: number; columns: number; hasUpperDeck: boolean; layoutJson: string }> {
+    return this.http.post<{ id: string; layoutName: string; totalSeats: number; rows: number; columns: number; hasUpperDeck: boolean; layoutJson: string }>(
+      `${this.busApiUrl}/layouts`,
+      payload
+    );
+  }
+
+  getMyLayouts(): Observable<
+    Array<{ id: string; layoutName: string; totalSeats: number; rows: number; columns: number; hasUpperDeck: boolean; layoutJson: string }>
+  > {
+    return this.http.get<Array<{ id: string; layoutName: string; totalSeats: number; rows: number; columns: number; hasUpperDeck: boolean; layoutJson: string }>>(
+      `${this.busApiUrl}/layouts`
+    );
+  }
+
+  createBus(payload: {
+    busNumber: string;
+    busName: string;
+    layoutId: string;
+    routeId?: string | null;
+    departureTime?: string | null;
+    arrivalTime?: string | null;
+    baseFare: number;
+  }): Observable<{ busId: string }> {
+    return this.http.post<{ busId: string }>(`${this.busApiUrl}`, {
+      busNumber: payload.busNumber,
+      busName: payload.busName,
+      layoutId: payload.layoutId,
+      routeId: payload.routeId ?? null,
+      departureTime: payload.departureTime ?? null,
+      arrivalTime: payload.arrivalTime ?? null,
+      baseFare: payload.baseFare
+    });
+  }
+
   requestRouteAssignment(payload: {
     busId: string;
     routeId: string;

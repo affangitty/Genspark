@@ -1,9 +1,10 @@
-import { ApplicationRef, Component, OnInit, inject } from '@angular/core';
+import { ApplicationRef, ChangeDetectorRef, Component, NgZone, OnInit, inject } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
-import { finalize, timeout } from 'rxjs';
+import { Subscription, finalize, timeout } from 'rxjs';
 import { Bus } from '../../core/models';
 import { BusService } from '../../core/services/bus.service';
+import { httpErrorMessage } from '../../core/utils/http-error-message';
 
 @Component({
   selector: 'app-home',
@@ -14,7 +15,12 @@ import { BusService } from '../../core/services/bus.service';
 export class HomeComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly appRef = inject(ApplicationRef);
+  private readonly cdr = inject(ChangeDetectorRef);
+  private readonly ngZone = inject(NgZone);
+  private searchSub?: Subscription;
   loading = false;
+  /** True after a search request finishes (success, error, or timeout). */
+  hasCompletedSearch = false;
   error = '';
   buses: Bus[] = [];
   sourceSuggestions: string[] = [];
@@ -32,7 +38,15 @@ export class HomeComponent implements OnInit {
   ngOnInit(): void {
     this.busService
       .getSourceCities()
-      .pipe(timeout(25_000), finalize(() => this.appRef.tick()))
+      .pipe(
+        timeout(25_000),
+        finalize(() => {
+          this.ngZone.run(() => {
+            this.appRef.tick();
+            this.cdr.detectChanges();
+          });
+        })
+      )
       .subscribe({
         next: (cities) => {
           this.sourceSuggestions = cities.map((c) => c.sourceCity);
@@ -48,7 +62,15 @@ export class HomeComponent implements OnInit {
     if (!sourceCity) return;
     this.busService
       .getDestinationCities(sourceCity)
-      .pipe(timeout(25_000), finalize(() => this.appRef.tick()))
+      .pipe(
+        timeout(25_000),
+        finalize(() => {
+          this.ngZone.run(() => {
+            this.appRef.tick();
+            this.cdr.detectChanges();
+          });
+        })
+      )
       .subscribe({
         next: (data) => {
           this.destinationSuggestions = data.map((d) => d.destinationCity);
@@ -64,33 +86,39 @@ export class HomeComponent implements OnInit {
       this.searchForm.markAllAsTouched();
       return;
     }
+    this.searchSub?.unsubscribe();
     this.loading = true;
+    this.hasCompletedSearch = false;
     this.error = '';
     this.buses = [];
+    this.cdr.detectChanges();
     const form = this.searchForm.getRawValue();
-    this.busService
+    this.searchSub = this.busService
       .searchBuses(form.sourceCity ?? '', form.destinationCity ?? '', form.journeyDate ?? '', form.passengerCount ?? 1)
       .pipe(
         timeout(25_000),
         finalize(() => {
-          this.loading = false;
-          this.appRef.tick();
+          this.ngZone.run(() => {
+            this.loading = false;
+            this.hasCompletedSearch = true;
+            this.searchSub = undefined;
+            this.appRef.tick();
+            this.cdr.detectChanges();
+          });
         })
       )
       .subscribe({
         next: (res) => {
           this.buses = res;
+          this.cdr.detectChanges();
         },
         error: (err) => {
           if (err?.name === 'TimeoutError') {
             this.error = 'Search timed out. Is the API running on http://localhost:5153?';
             return;
           }
-          const body = err?.error;
-          this.error =
-            typeof body === 'string'
-              ? body
-              : body?.detail ?? body?.message ?? err?.message ?? 'Failed to search buses.';
+          this.error = httpErrorMessage(err, 'Failed to search buses.');
+          this.cdr.detectChanges();
         }
       });
   }

@@ -62,7 +62,7 @@ public class OperatorController : ControllerBase
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequestDto request)
     {
-        var op = await _unitOfWork.BusOperators.GetByEmailAsync(request.Email.ToLower().Trim());
+        var op = await _unitOfWork.BusOperators.GetByEmailAsync(request.ResolveLoginId().ToLowerInvariant());
 
         if (op == null || !BCrypt.Net.BCrypt.Verify(request.Password, op.PasswordHash))
             return Unauthorized(new { message = "Invalid email or password." });

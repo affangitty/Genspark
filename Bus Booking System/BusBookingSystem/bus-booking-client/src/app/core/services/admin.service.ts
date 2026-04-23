@@ -44,12 +44,27 @@ export class AdminService {
     return this.http.get<AdminRevenueDashboard>(`${this.apiUrl}/revenue-dashboard`);
   }
 
-  getPlatformConfig(): Observable<{ convenienceFeePercentage: number; seatLockDurationMinutes: number }> {
-    return this.http.get<{ convenienceFeePercentage: number; seatLockDurationMinutes: number }>(`${this.apiUrl}/platform-config`);
+  getPlatformConfig(): Observable<{
+    convenienceFeePercentage: number;
+    useFlatConvenienceFee: boolean;
+    flatConvenienceFeePerPassenger: number;
+    seatLockDurationMinutes: number;
+  }> {
+    return this.http.get<{
+      convenienceFeePercentage: number;
+      useFlatConvenienceFee: boolean;
+      flatConvenienceFeePerPassenger: number;
+      seatLockDurationMinutes: number;
+    }>(`${this.apiUrl}/platform-config`);
   }
 
-  updatePlatformConfig(convenienceFeePercentage: number, seatLockDurationMinutes: number): Observable<unknown> {
-    return this.http.put(`${this.apiUrl}/platform-config`, { convenienceFeePercentage, seatLockDurationMinutes });
+  updatePlatformConfig(payload: {
+    convenienceFeePercentage: number;
+    useFlatConvenienceFee: boolean;
+    flatConvenienceFeePerPassenger: number;
+    seatLockDurationMinutes: number;
+  }): Observable<unknown> {
+    return this.http.put(`${this.apiUrl}/platform-config`, payload);
   }
 
   getRoutes(): Observable<Array<{ id: string; sourceCity: string; destinationCity: string; sourceState: string; destinationState: string; isActive: boolean }>> {

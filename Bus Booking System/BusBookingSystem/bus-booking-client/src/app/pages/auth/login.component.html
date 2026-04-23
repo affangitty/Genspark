@@ -6,18 +6,24 @@
         <p class="text-muted small mb-4">Sign in to continue booking and manage trips.</p>
 
         <div class="btn-group w-100 mb-4" role="group" aria-label="Account type">
-          <input type="radio" class="btn-check" name="role" id="roleUser" value="User" [(ngModel)]="role" />
+          <input type="radio" class="btn-check" name="role" id="roleUser" value="User" [(ngModel)]="role" (ngModelChange)="onRoleChange()" />
           <label class="btn btn-outline-primary" for="roleUser">User</label>
-          <input type="radio" class="btn-check" name="role" id="roleOp" value="Operator" [(ngModel)]="role" />
+          <input type="radio" class="btn-check" name="role" id="roleOp" value="Operator" [(ngModel)]="role" (ngModelChange)="onRoleChange()" />
           <label class="btn btn-outline-primary" for="roleOp">Operator</label>
-          <input type="radio" class="btn-check" name="role" id="roleAd" value="Admin" [(ngModel)]="role" />
+          <input type="radio" class="btn-check" name="role" id="roleAd" value="Admin" [(ngModel)]="role" (ngModelChange)="onRoleChange()" />
           <label class="btn btn-outline-primary" for="roleAd">Admin</label>
         </div>
 
         <form [formGroup]="form" (ngSubmit)="submit()">
           <div class="mb-3">
-            <label class="form-label" for="loginEmail">Email</label>
-            <input id="loginEmail" type="email" class="form-control form-control-lg" formControlName="email" autocomplete="username" />
+            <label class="form-label" for="loginId">{{ role === 'User' ? 'Email, phone, or username' : 'Email' }}</label>
+            <input
+              id="loginId"
+              [type]="role === 'User' ? 'text' : 'email'"
+              class="form-control form-control-lg"
+              formControlName="loginId"
+              autocomplete="username"
+            />
           </div>
           <div class="mb-4">
             <label class="form-label" for="loginPw">Password</label>

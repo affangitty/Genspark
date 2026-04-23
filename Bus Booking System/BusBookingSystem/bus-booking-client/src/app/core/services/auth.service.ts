@@ -24,8 +24,8 @@ export class AuthService {
     }
   }
 
-  loginUser(email: string, password: string): Observable<LoginResponse> {
-    return this.http.post<LoginResponse>(`${this.apiUrl}/login`, { email, password }).pipe(
+  loginUser(identifier: string, password: string): Observable<LoginResponse> {
+    return this.http.post<LoginResponse>(`${this.apiUrl}/login`, { identifier, password }).pipe(
       tap((res) => this.persistSession(res))
     );
   }
@@ -45,6 +45,7 @@ export class AuthService {
   register(userData: {
     fullName: string;
     email: string;
+    userName?: string | null;
     phoneNumber: string;
     password: string;
     confirmPassword: string;

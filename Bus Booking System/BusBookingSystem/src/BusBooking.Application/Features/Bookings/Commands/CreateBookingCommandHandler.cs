@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+using BusBooking.Application.Common;
 using BusBooking.Application.DTOs.Booking;
 using BusBooking.Domain.Entities;
 using BusBooking.Domain.Enums;
@@ -51,23 +53,28 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
             request.BusId, request.JourneyDate, exceptUserId: request.UserId);
         var unavailableSeats = new HashSet<Guid>(bookedSeats.Concat(lockedSeats));
 
-        foreach (var passenger in request.Passengers)
+        foreach (var passengerDto in request.Passengers)
         {
-            if (unavailableSeats.Contains(passenger.SeatId))
-                throw new InvalidOperationException($"Seat is not available for passenger {passenger.PassengerName}");
+            if (unavailableSeats.Contains(passengerDto.SeatId))
+                throw new InvalidOperationException($"Seat is not available for passenger {passengerDto.PassengerName}");
+
+            var seat = await _unitOfWork.Seats.GetByIdAsync(passengerDto.SeatId);
+            if (seat == null)
+                throw new ArgumentException("Seat not found");
+
+            if (seat.SeatType == SeatType.Ladies &&
+                !string.Equals(passengerDto.Gender?.Trim(), "Female", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException($"Seat {seat.SeatNumber} is reserved for female passengers.");
         }
 
         // Calculate fares
         var platformConfig = await _unitOfWork.PlatformConfig.GetCurrentAsync();
-        var convenienceFeePercentage = platformConfig?.ConvenienceFeePercentage ?? 5m;
         var baseFareTotal = bus.BaseFare * request.Passengers.Count;
-        var convenienceFee = (baseFareTotal * convenienceFeePercentage) / 100;
+        var convenienceFee = PlatformFeeCalculator.ComputeConvenienceFee(
+            platformConfig, baseFareTotal, request.Passengers.Count);
         var totalAmount = baseFareTotal + convenienceFee;
 
-        // Get boarding and drop-off addresses from operator locations
-        var operatorLocations = await _unitOfWork.BusOperators.GetLocationsByOperatorIdAsync(bus.OperatorId);
-        var boardingAddress = operatorLocations.FirstOrDefault()?.AddressLine ?? "TBD";
-        var dropOffAddress = operatorLocations.LastOrDefault()?.AddressLine ?? "TBD";
+        var (boardingAddress, dropOffAddress) = await ResolveBoardingAddressesAsync(bus);
 
         // Create booking
         var booking = new Booking
@@ -172,4 +179,50 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
         await _unitOfWork.SeatLocks.ReleaseLocksForSeatsAsync(seatIds, journeyDate.Date);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
+
+    private async Task<(string Boarding, string DropOff)> ResolveBoardingAddressesAsync(Bus bus)
+    {
+        var locations = (await _unitOfWork.BusOperators.GetLocationsByOperatorIdAsync(bus.OperatorId)).ToList();
+        if (locations.Count == 0)
+            return ("TBD", "TBD");
+
+        var route = bus.Route;
+        if (route == null)
+        {
+            return (FormatOperatorLocation(locations[0]),
+                FormatOperatorLocation(locations.Count > 1 ? locations[^1] : locations[0]));
+        }
+
+        var boarding = locations.FirstOrDefault(l => CityMatchesRouteCity(l.City, route.SourceCity));
+        var dropOff = locations.FirstOrDefault(l => CityMatchesRouteCity(l.City, route.DestinationCity));
+
+        if (boarding == null)
+            throw new InvalidOperationException(
+                $"Add an operator location in or near the route source city ({route.SourceCity}) for boarding.");
+
+        if (dropOff == null)
+            throw new InvalidOperationException(
+                $"Add an operator location in or near the route destination city ({route.DestinationCity}) for drop-off.");
+
+        return (FormatOperatorLocation(boarding), FormatOperatorLocation(dropOff));
+    }
+
+    private static string FormatOperatorLocation(OperatorLocation l)
+    {
+        var parts = new[] { l.AddressLine, l.Landmark, l.City, l.State, l.PinCode }
+            .Where(s => !string.IsNullOrWhiteSpace(s));
+        return string.Join(", ", parts);
+    }
+
+    private static bool CityMatchesRouteCity(string locationCity, string routeCity)
+    {
+        var a = NormalizeCityToken(locationCity);
+        var b = NormalizeCityToken(routeCity);
+        if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b))
+            return false;
+        return a == b || a.Contains(b, StringComparison.Ordinal) || b.Contains(a, StringComparison.Ordinal);
+    }
+
+    private static string NormalizeCityToken(string name) =>
+        Regex.Replace(name.ToLowerInvariant().Trim(), @"\s+", " ");
 }

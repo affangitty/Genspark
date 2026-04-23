@@ -11,6 +11,10 @@
   }
 </div>
 
+@if (loadError) {
+  <div class="alert alert-warning" role="status">{{ loadError }}</div>
+}
+
 @if (revenue) {
   <div class="row g-3 mb-4">
     <div class="col-6 col-md-4 col-xl-2">
@@ -78,9 +82,19 @@
         <h2 class="h5 fw-semibold mb-3">Platform fees</h2>
         <form [formGroup]="feeForm" (ngSubmit)="updateFee()">
           <div class="row g-3">
+            <div class="col-12">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="useFlat" formControlName="useFlatConvenienceFee" />
+                <label class="form-check-label" for="useFlat">Use flat convenience fee per passenger (instead of %)</label>
+              </div>
+            </div>
             <div class="col-sm-6">
               <label class="form-label">Convenience fee %</label>
               <input type="number" class="form-control" formControlName="convenienceFeePercentage" />
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label">Flat fee / passenger (₹)</label>
+              <input type="number" class="form-control" formControlName="flatConvenienceFeePerPassenger" />
             </div>
             <div class="col-sm-6">
               <label class="form-label">Seat lock (minutes)</label>

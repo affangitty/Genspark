@@ -58,7 +58,8 @@ export interface Seat {
   row: number;
   column: number;
   deck: string;
-  seatType: string;
+  /** API may send enum as string or number (e.g. Ladies = 3). */
+  seatType: string | number;
   isAvailable: boolean;
   isLocked: boolean;
 }

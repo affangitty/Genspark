@@ -1,3 +1,4 @@
+using BusBooking.Application.Common;
 using BusBooking.Application.DTOs.Auth;
 using BusBooking.Application.Interfaces;
 using BusBooking.Domain.Entities;
@@ -28,11 +29,23 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> Register([FromBody] RegisterRequestDto request)
     {
         var email = request.Email.ToLower().Trim();
+        var phone = PhoneNormalizer.Normalize(request.PhoneNumber);
 
         // Must match stored email (lowercase); otherwise mixed-case re-register bypasses this and hits DB unique index → 500
         var existingUser = await _unitOfWork.Users.GetByEmailAsync(email);
         if (existingUser != null)
             return Conflict(new { message = "Email is already registered." });
+
+        if (!string.IsNullOrWhiteSpace(request.UserName))
+        {
+            var handle = request.UserName.Trim().ToLowerInvariant();
+            if (await _unitOfWork.Users.GetByUserNameAsync(handle) != null)
+                return Conflict(new { message = "Username is already taken." });
+        }
+
+        var existingPhone = await _unitOfWork.Users.GetByPhoneNumberAsync(phone);
+        if (existingPhone != null)
+            return Conflict(new { message = "Phone number is already registered." });
 
         // Check passwords match
         if (request.Password != request.ConfirmPassword)
@@ -42,7 +55,10 @@ public class AuthController : ControllerBase
         {
             FullName = request.FullName,
             Email = email,
-            PhoneNumber = request.PhoneNumber,
+            UserName = string.IsNullOrWhiteSpace(request.UserName)
+                ? null
+                : request.UserName.Trim().ToLowerInvariant(),
+            PhoneNumber = phone,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
             Role = UserRole.User,
             IsActive = true
@@ -65,7 +81,8 @@ public class AuthController : ControllerBase
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequestDto request)
     {
-        var user = await _unitOfWork.Users.GetByEmailAsync(request.Email.ToLower().Trim());
+        var loginId = request.ResolveLoginId();
+        var user = await ResolveUserForLoginAsync(loginId);
 
         if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
             return Unauthorized(new { message = "Invalid email or password." });
@@ -238,5 +255,26 @@ public class AuthController : ControllerBase
         }
 
         return Unauthorized(new ProblemDetails { Title = "Unauthorized", Detail = "Unknown role in refresh token." });
+    }
+
+    private async Task<User?> ResolveUserForLoginAsync(string loginId)
+    {
+        if (loginId.Contains('@', StringComparison.Ordinal))
+            return await _unitOfWork.Users.GetByEmailAsync(loginId.ToLowerInvariant());
+
+        if (LooksLikePhone(loginId))
+            return await _unitOfWork.Users.GetByPhoneNumberAsync(PhoneNormalizer.Normalize(loginId));
+
+        return await _unitOfWork.Users.GetByUserNameAsync(loginId);
+    }
+
+    private static bool LooksLikePhone(string id)
+    {
+        var t = id.Replace(" ", "", StringComparison.Ordinal).Replace("-", "", StringComparison.Ordinal);
+        if (string.IsNullOrEmpty(t))
+            return false;
+        if (t.StartsWith("+", StringComparison.Ordinal))
+            t = t[1..];
+        return t.Length is >= 10 and <= 15 && t.All(char.IsDigit);
     }
 }

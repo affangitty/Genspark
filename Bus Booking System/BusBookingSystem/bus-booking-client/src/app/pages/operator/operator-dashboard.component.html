@@ -15,6 +15,63 @@
   <div class="alert alert-danger" role="alert">{{ error }}</div>
 }
 
+<div class="row g-4 mb-4">
+  <div class="col-lg-6">
+    <div class="card app-card border-0 h-100">
+      <div class="card-body">
+        <h2 class="h5 fw-semibold mb-3">Create seat layout</h2>
+        <p class="small text-muted">Generates a simple grid JSON for seats (admin must still approve the bus).</p>
+        <div class="row g-2">
+          <div class="col-md-6">
+            <label class="form-label">Layout name</label>
+            <input type="text" class="form-control" [(ngModel)]="newLayoutName" placeholder="e.g. Volvo 40" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Rows</label>
+            <input type="number" class="form-control" [(ngModel)]="newLayoutRows" min="1" max="50" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Columns</label>
+            <input type="number" class="form-control" [(ngModel)]="newLayoutCols" min="1" max="10" />
+          </div>
+        </div>
+        <button type="button" class="btn btn-primary mt-3" (click)="createLayout()">Create layout</button>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card app-card border-0 h-100">
+      <div class="card-body">
+        <h2 class="h5 fw-semibold mb-3">Register new bus</h2>
+        <div class="row g-2">
+          <div class="col-md-6">
+            <label class="form-label">Bus number</label>
+            <input type="text" class="form-control" [(ngModel)]="newBusNumber" />
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Bus name</label>
+            <input type="text" class="form-control" [(ngModel)]="newBusName" />
+          </div>
+          <div class="col-md-8">
+            <label class="form-label">Layout</label>
+            <select class="form-select" [(ngModel)]="newBusLayoutId">
+              <option value="">Select layout</option>
+              @for (lo of layouts; track lo.id) {
+                <option [value]="lo.id">{{ lo.layoutName }} ({{ lo.totalSeats }} seats)</option>
+              }
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Base fare ₹</label>
+            <input type="number" class="form-control" [(ngModel)]="newBusFare" min="1" />
+          </div>
+        </div>
+        <button type="button" class="btn btn-primary mt-3" (click)="createBus()">Submit bus for approval</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 @if (summary) {
   <div class="row g-3 mb-4">
     <div class="col-6 col-md-3">
@@ -75,6 +132,12 @@
 <div class="card app-card border-0 mb-4">
   <div class="card-body">
     <h2 class="h5 fw-semibold mb-3">Request route assignment</h2>
+    @if (routeAssignmentSuccess) {
+      <div class="alert alert-success small mb-3" role="status">{{ routeAssignmentSuccess }}</div>
+    }
+    @if (routeAssignmentError) {
+      <div class="alert alert-danger small mb-3" role="alert">{{ routeAssignmentError }}</div>
+    }
     <div class="row g-3 align-items-end">
       <div class="col-md-5">
         <label class="form-label">Bus</label>

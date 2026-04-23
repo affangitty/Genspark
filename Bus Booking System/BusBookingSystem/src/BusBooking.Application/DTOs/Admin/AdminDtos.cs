@@ -15,6 +15,8 @@ public class ApproveBusRequestDto
 public class PlatformConfigDto
 {
     public decimal ConvenienceFeePercentage { get; set; }
+    public bool UseFlatConvenienceFee { get; set; }
+    public decimal FlatConvenienceFeePerPassenger { get; set; }
     public int SeatLockDurationMinutes { get; set; }
 }
 

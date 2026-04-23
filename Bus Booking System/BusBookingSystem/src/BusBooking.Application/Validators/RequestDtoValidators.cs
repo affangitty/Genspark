@@ -55,7 +55,7 @@ public sealed class BusSearchRequestValidator : AbstractValidator<BusSearchReque
         RuleFor(x => x.SourceCity).NotEmpty().MaximumLength(100);
         RuleFor(x => x.DestinationCity).NotEmpty().MaximumLength(100);
         RuleFor(x => x.JourneyDate)
-            .Must(d => d.Date >= DateTime.UtcNow.Date)
+            .Must(d => d != default && DateOnly.FromDateTime(d) >= DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1))
             .WithMessage("Journey date must be today or in the future.");
         RuleFor(x => x.PassengerCount).InclusiveBetween(1, 50).When(x => x.PassengerCount.HasValue);
     }
@@ -106,7 +106,7 @@ public sealed class CreateBookingRequestValidator : AbstractValidator<CreateBook
     {
         RuleFor(x => x.BusId).NotEmpty();
         RuleFor(x => x.JourneyDate)
-            .Must(d => d.Date >= DateTime.UtcNow.Date)
+            .Must(d => d != default && DateOnly.FromDateTime(d) >= DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1))
             .WithMessage("Journey date must be today or in the future.");
         RuleFor(x => x.Passengers).NotEmpty();
         RuleForEach(x => x.Passengers).SetValidator(new PassengerValidator());
@@ -163,6 +163,7 @@ public sealed class PlatformConfigDtoValidator : AbstractValidator<PlatformConfi
     {
         RuleFor(x => x.ConvenienceFeePercentage).InclusiveBetween(0, 100);
         RuleFor(x => x.SeatLockDurationMinutes).InclusiveBetween(1, 120);
+        RuleFor(x => x.FlatConvenienceFeePerPassenger).InclusiveBetween(0, 50_000);
     }
 }
 

@@ -1,6 +1,7 @@
 import { Component } from '@angular/core';
 import { Router } from '@angular/router';
 import { AuthService } from './core/services/auth.service';
+import { UserDashboardReloadService } from './core/services/user-dashboard-reload.service';
 import { User } from './core/models';
 
 @Component({
@@ -10,7 +11,18 @@ import { User } from './core/models';
   styleUrl: './app.scss'
 })
 export class App {
-  constructor(private authService: AuthService, private router: Router) {}
+  constructor(
+    private authService: AuthService,
+    private router: Router,
+    private userDashboardReload: UserDashboardReloadService
+  ) {}
+
+  /** Re-fetch bookings when the user clicks "My bookings" while already on that page. */
+  onMyBookingsNavClick(): void {
+    if (this.router.url.split('?')[0] === '/user/dashboard') {
+      this.userDashboardReload.requestReload();
+    }
+  }
 
   get user(): User | null {
     return this.authService.getCurrentUser();

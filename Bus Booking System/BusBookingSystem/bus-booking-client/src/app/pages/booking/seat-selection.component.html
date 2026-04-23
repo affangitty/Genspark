@@ -18,7 +18,7 @@
             <p class="mb-0">{{ journeyDate }}</p>
           }
           <hr />
-          <p class="small text-muted mb-0">Tap seats to lock them (requires sign-in for live locks).</p>
+          <p class="small text-muted mb-0">Seat selection requires a user account; live locks use SignalR while you are signed in.</p>
         </div>
       </div>
     </div>
@@ -38,14 +38,20 @@
             @for (seat of seats; track seat.id) {
               <button
                 type="button"
-                class="btn seat-btn rounded-3 border-2"
+                class="btn seat-btn rounded-3 border-2 position-relative"
                 [class.btn-primary]="selectedSeats.has(seat.id)"
                 [class.btn-outline-secondary]="!selectedSeats.has(seat.id) && (seat.isAvailable || selectedSeats.has(seat.id))"
                 [class.btn-light]="!seat.isAvailable && !selectedSeats.has(seat.id)"
+                [class.border-danger-subtle]="isLadiesSeat(seat)"
                 [disabled]="!seat.isAvailable && !selectedSeats.has(seat.id)"
                 (click)="toggleSeat(seat)"
               >
                 {{ seat.seatNumber }}
+                @if (isLadiesSeat(seat)) {
+                  <span class="position-absolute top-0 start-50 translate-middle badge rounded-pill bg-danger" style="font-size: 0.55rem"
+                    >L</span
+                  >
+                }
               </button>
             }
           </div>

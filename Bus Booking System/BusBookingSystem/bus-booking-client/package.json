@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
+    "cache:clear": "node -e \"const fs=require('fs');const p='.angular/cache';if(fs.existsSync(p)){fs.rmSync(p,{recursive:true});console.log('Cleared',p)}else{console.log('No',p)}\"",
     "start": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",

@@ -217,10 +217,20 @@ public class BookingController : ControllerBase
         if (booking.Cancellation != null)
             return BadRequest(new { message = "Booking is already cancelled" });
 
+        if (booking.Bus == null)
+            return BadRequest(new { message = "Booking data incomplete" });
+
         var now = DateTime.UtcNow;
-        var hoursToJourney = (booking.JourneyDate - now).TotalHours;
-        decimal refundPercentage = hoursToJourney >= 24 ? 100m : hoursToJourney >= 12 ? 50m : 0m;
-        decimal refundAmount = Math.Round((booking.TotalAmount * refundPercentage) / 100m, 2);
+        var journeyStart = booking.JourneyDate.Date;
+        if (booking.Bus.DepartureTime.HasValue)
+            journeyStart = journeyStart.Add(booking.Bus.DepartureTime.Value);
+
+        var hoursToJourney = (journeyStart - now).TotalHours;
+        if (hoursToJourney < 24)
+            return BadRequest(new { message = "Cancellations are not allowed within 24 hours of scheduled departure." });
+
+        const decimal refundPercentage = 100m;
+        var refundAmount = Math.Round((booking.TotalAmount * refundPercentage) / 100m, 2);
 
         booking.Status = BookingStatus.Cancelled;
         _unitOfWork.Bookings.Update(booking);
@@ -347,10 +357,10 @@ public class BookingController : ControllerBase
         {
             Id = booking.Id,
             BookingReference = booking.BookingReference,
-            BusNumber = booking.Bus.BusNumber,
-            BusName = booking.Bus.BusName,
-            SourceCity = booking.Bus.Route?.SourceCity ?? string.Empty,
-            DestinationCity = booking.Bus.Route?.DestinationCity ?? string.Empty,
+            BusNumber = booking.Bus?.BusNumber ?? string.Empty,
+            BusName = booking.Bus?.BusName ?? string.Empty,
+            SourceCity = booking.Bus?.Route?.SourceCity ?? string.Empty,
+            DestinationCity = booking.Bus?.Route?.DestinationCity ?? string.Empty,
             JourneyDate = booking.JourneyDate,
             BoardingAddress = booking.BoardingAddress,
             DropOffAddress = booking.DropOffAddress,
@@ -359,13 +369,15 @@ public class BookingController : ControllerBase
             TotalAmount = booking.TotalAmount,
             Status = booking.Status.ToString(),
             CreatedAt = booking.CreatedAt,
-            Passengers = booking.Passengers.Select(p => new PassengerResponseDto
-            {
-                PassengerName = p.PassengerName,
-                Age = p.Age,
-                Gender = p.Gender,
-                SeatNumber = p.SeatNumber
-            }).ToList()
+            Passengers = booking.Passengers?
+                .Select(p => new PassengerResponseDto
+                {
+                    PassengerName = p.PassengerName,
+                    Age = p.Age,
+                    Gender = p.Gender,
+                    SeatNumber = p.SeatNumber
+                })
+                .ToList() ?? new List<PassengerResponseDto>()
         };
     }
 }
