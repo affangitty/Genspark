@@ -423,6 +423,254 @@ public class BusController : ControllerBase
         });
     }
 
+    /// <summary>
+    /// Get predefined layout templates — operator picks one when adding a bus
+    /// </summary>
+    [HttpGet("layouts/templates")]
+    [Authorize(Roles = "Operator")]
+    public IActionResult GetLayoutTemplates()
+    {
+        var templates = new List<object>
+        {
+            new {
+                name = "2+2 Seater (40 seats)",
+                totalSeats = 40,
+                rows = 10,
+                columns = 4,
+                hasUpperDeck = false,
+                layoutJson = GenerateSeaterLayout(10, 4, "Seater")
+            },
+            new {
+                name = "2+1 Seater (30 seats)",
+                totalSeats = 30,
+                rows = 10,
+                columns = 3,
+                hasUpperDeck = false,
+                layoutJson = GenerateSeaterLayout(10, 3, "Seater")
+            },
+            new {
+                name = "2+2 Semi-Sleeper (40 seats)",
+                totalSeats = 40,
+                rows = 10,
+                columns = 4,
+                hasUpperDeck = false,
+                layoutJson = GenerateSeaterLayout(10, 4, "SemiSleeper")
+            },
+            new {
+                name = "Sleeper (36 berths)",
+                totalSeats = 36,
+                rows = 9,
+                columns = 4,
+                hasUpperDeck = true,
+                layoutJson = GenerateSleeperLayout(9)
+            },
+            new {
+                name = "2+2 Double Decker (80 seats)",
+                totalSeats = 80,
+                rows = 10,
+                columns = 4,
+                hasUpperDeck = true,
+                layoutJson = GenerateDoubleDeckLayout(10, 4)
+            }
+        };
+
+        return Ok(templates);
+    }
+
+    private static string GenerateSeaterLayout(int rows, int columns, string type)
+    {
+        var seats = new List<object>();
+        int seatNum = 1;
+        var colLabels = new[] { "A", "B", "C", "D" };
+
+        for (int row = 1; row <= rows; row++)
+        {
+            for (int col = 1; col <= columns; col++)
+            {
+                seats.Add(new
+                {
+                    seatNumber = $"{colLabels[col - 1]}{row}",
+                    row,
+                    column = col,
+                    deck = "lower",
+                    type
+                });
+                seatNum++;
+            }
+        }
+
+        return System.Text.Json.JsonSerializer.Serialize(seats);
+    }
+
+    private static string GenerateSleeperLayout(int rows)
+    {
+        var seats = new List<object>();
+
+        for (int row = 1; row <= rows; row++)
+        {
+            // Lower deck: L1, L2 per row
+            seats.Add(new { seatNumber = $"L{row}A", row, column = 1, deck = "lower", type = "Sleeper" });
+            seats.Add(new { seatNumber = $"L{row}B", row, column = 2, deck = "lower", type = "Sleeper" });
+            // Upper deck: U1, U2 per row
+            seats.Add(new { seatNumber = $"U{row}A", row, column = 1, deck = "upper", type = "Sleeper" });
+            seats.Add(new { seatNumber = $"U{row}B", row, column = 2, deck = "upper", type = "Sleeper" });
+        }
+
+        return System.Text.Json.JsonSerializer.Serialize(seats);
+    }
+
+    private static string GenerateDoubleDeckLayout(int rows, int columns)
+    {
+        var seats = new List<object>();
+        var colLabels = new[] { "A", "B", "C", "D" };
+
+        for (int row = 1; row <= rows; row++)
+        {
+            for (int col = 1; col <= columns; col++)
+            {
+                // Lower deck
+                seats.Add(new
+                {
+                    seatNumber = $"L{colLabels[col - 1]}{row}",
+                    row,
+                    column = col,
+                    deck = "lower",
+                    type = "Seater"
+                });
+                // Upper deck
+                seats.Add(new
+                {
+                    seatNumber = $"U{colLabels[col - 1]}{row}",
+                    row,
+                    column = col,
+                    deck = "upper",
+                    type = "Seater"
+                });
+            }
+        }
+
+        return System.Text.Json.JsonSerializer.Serialize(seats);
+    }
+
+    /// <summary>
+    /// Request to assign a bus to a route — operator submits, admin approves
+    /// </summary>
+    [HttpPost("{id}/assign-route")]
+    [Authorize(Roles = "Operator")]
+    public async Task<IActionResult> RequestRouteAssignment(
+        Guid id, [FromBody] AssignRouteRequestDto request)
+    {
+        var operatorId = GetOperatorId();
+        if (operatorId == null) return Unauthorized();
+
+        var bus = await _unitOfWork.Buses.GetByIdAsync(id);
+        if (bus == null || bus.OperatorId != operatorId.Value)
+            return NotFound(new { message = "Bus not found." });
+
+        if (bus.Status != BusStatus.Active)
+            return BadRequest(new { message = "Bus must be active before assigning a route." });
+
+        var route = await _unitOfWork.Routes.GetByIdAsync(request.RouteId);
+        if (route == null || !route.IsActive)
+            return BadRequest(new { message = "Invalid or inactive route." });
+
+        var assignment = new BusRouteAssignment
+        {
+            BusId = id,
+            RouteId = request.RouteId,
+            OperatorId = operatorId.Value,
+            DepartureTime = request.DepartureTime,
+            ArrivalTime = request.ArrivalTime,
+            DurationMinutes = request.DurationMinutes,
+            BaseFare = request.BaseFare
+        };
+
+        await _unitOfWork.BusRouteAssignments.AddAsync(assignment);
+        await _unitOfWork.SaveChangesAsync();
+
+        return CreatedAtAction(nameof(GetBusById), new { id }, new
+        {
+            message = "Route assignment request submitted. Awaiting admin approval.",
+            assignmentId = assignment.Id
+        });
+    }
+
+    /// <summary>
+    /// Get pending route assignments — admin only
+    /// </summary>
+    [HttpGet("route-assignments/pending")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> GetPendingAssignments()
+    {
+        var assignments = await _unitOfWork.BusRouteAssignments.GetPendingAsync();
+        return Ok(assignments.Select(a => new
+        {
+            a.Id,
+            a.BusId,
+            BusNumber = a.Bus.BusNumber,
+            BusName = a.Bus.BusName,
+            OperatorName = a.Bus.Operator?.CompanyName,
+            RouteId = a.RouteId,
+            Route = $"{a.Route.SourceCity} → {a.Route.DestinationCity}",
+            a.DepartureTime,
+            a.ArrivalTime,
+            a.DurationMinutes,
+            a.BaseFare,
+            a.CreatedAt
+        }));
+    }
+
+    /// <summary>
+    /// Approve or reject a route assignment — admin only
+    /// </summary>
+    [HttpPost("route-assignments/{assignmentId}/approve")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> ApproveRouteAssignment(
+        Guid assignmentId, [FromBody] BusBooking.Application.DTOs.Admin.ApproveBusRequestDto request)
+    {
+        var assignment = await _unitOfWork.BusRouteAssignments.GetByIdAsync(assignmentId);
+        if (assignment == null)
+            return NotFound(new { message = "Assignment not found." });
+
+        if (assignment.IsApproved || assignment.IsRejected)
+            return BadRequest(new { message = "Assignment already reviewed." });
+
+        if (request.IsApproved)
+        {
+            assignment.IsApproved = true;
+            assignment.ReviewedAt = DateTime.UtcNow;
+            assignment.AdminNotes = request.AdminNotes;
+
+            // Apply to bus
+            var bus = await _unitOfWork.Buses.GetByIdAsync(assignment.BusId);
+            if (bus != null)
+            {
+                bus.RouteId = assignment.RouteId;
+                bus.DepartureTime = assignment.DepartureTime;
+                bus.ArrivalTime = assignment.ArrivalTime;
+                bus.DurationMinutes = assignment.DurationMinutes;
+                bus.BaseFare = assignment.BaseFare;
+                _unitOfWork.Buses.Update(bus);
+            }
+        }
+        else
+        {
+            assignment.IsRejected = true;
+            assignment.ReviewedAt = DateTime.UtcNow;
+            assignment.AdminNotes = request.AdminNotes;
+        }
+
+        _unitOfWork.BusRouteAssignments.Update(assignment);
+        await _unitOfWork.SaveChangesAsync();
+
+        return Ok(new
+        {
+            message = request.IsApproved ? "Route assignment approved." : "Route assignment rejected.",
+            assignmentId,
+            status = request.IsApproved ? "Approved" : "Rejected"
+        });
+    }
+
     // ── Helpers ───────────────────────────────────────────────
 
     private Guid? GetOperatorId()

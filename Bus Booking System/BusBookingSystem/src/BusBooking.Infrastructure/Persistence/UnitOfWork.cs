@@ -18,7 +18,10 @@ public class UnitOfWork : IUnitOfWork
     private IRouteRepository? _routes;
     private IBusOperatorRepository? _busOperators;
     private IPlatformConfigRepository? _platformConfig;
+    private IBusRouteAssignmentRepository? _busRouteAssignments;
 
+    public IBusRouteAssignmentRepository BusRouteAssignments =>
+        _busRouteAssignments ??= new BusRouteAssignmentRepository(_context);
     public UnitOfWork(AppDbContext context)
     {
         _context = context;

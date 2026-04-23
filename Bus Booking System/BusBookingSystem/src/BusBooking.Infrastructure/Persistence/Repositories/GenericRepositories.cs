@@ -370,3 +370,29 @@ public class SeatLockRepository : ISeatLockRepository
         _context.SeatLocks.RemoveRange(expired);
     }
 }
+
+public class BusRouteAssignmentRepository : IBusRouteAssignmentRepository
+{
+    private readonly AppDbContext _context;
+    public BusRouteAssignmentRepository(AppDbContext context) => _context = context;
+
+    public async Task<BusRouteAssignment?> GetByIdAsync(Guid id) =>
+        await _context.BusRouteAssignments
+            .Include(a => a.Bus).ThenInclude(b => b.Operator)
+            .Include(a => a.Route)
+            .FirstOrDefaultAsync(a => a.Id == id);
+
+    public async Task<IEnumerable<BusRouteAssignment>> GetPendingAsync() =>
+        await _context.BusRouteAssignments
+            .Include(a => a.Bus).ThenInclude(b => b.Operator)
+            .Include(a => a.Route)
+            .Where(a => !a.IsApproved && !a.IsRejected)
+            .OrderByDescending(a => a.CreatedAt)
+            .ToListAsync();
+
+    public async Task AddAsync(BusRouteAssignment assignment) =>
+        await _context.BusRouteAssignments.AddAsync(assignment);
+
+    public void Update(BusRouteAssignment assignment) =>
+        _context.BusRouteAssignments.Update(assignment);
+}

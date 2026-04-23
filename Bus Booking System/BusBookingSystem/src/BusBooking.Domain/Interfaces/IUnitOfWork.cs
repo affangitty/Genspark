@@ -10,6 +10,7 @@ public interface IUnitOfWork : IAsyncDisposable
     IBookingRepository Bookings { get; }
     IRouteRepository Routes { get; }
     IBusOperatorRepository BusOperators { get; }
+    IBusRouteAssignmentRepository BusRouteAssignments { get; }
     IPlatformConfigRepository PlatformConfig { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     Task BeginTransactionAsync();

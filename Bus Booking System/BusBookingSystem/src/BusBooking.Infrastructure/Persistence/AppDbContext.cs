@@ -21,6 +21,7 @@ public class AppDbContext : DbContext
     public DbSet<Payment> Payments => Set<Payment>();
     public DbSet<Cancellation> Cancellations => Set<Cancellation>();
     public DbSet<PlatformConfig> PlatformConfigs => Set<PlatformConfig>();
+    public DbSet<BusRouteAssignment> BusRouteAssignments => Set<BusRouteAssignment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

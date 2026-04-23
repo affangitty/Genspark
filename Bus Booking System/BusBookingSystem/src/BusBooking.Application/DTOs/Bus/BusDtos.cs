@@ -62,3 +62,12 @@ public class CreateBusLayoutRequestDto
     public bool HasUpperDeck { get; set; }
     public string LayoutJson { get; set; } = "[]";
 }
+
+public class AssignRouteRequestDto
+{
+    public Guid RouteId { get; set; }
+    public TimeSpan DepartureTime { get; set; }
+    public TimeSpan ArrivalTime { get; set; }
+    public int DurationMinutes { get; set; }
+    public decimal BaseFare { get; set; }
+}
