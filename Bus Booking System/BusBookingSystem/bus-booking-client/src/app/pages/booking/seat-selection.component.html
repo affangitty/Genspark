@@ -14,6 +14,13 @@
             <p class="fw-semibold mb-2">{{ bus.busNumber }} — {{ bus.busName }}</p>
             <p class="small text-muted mb-1">Route</p>
             <p class="mb-2">{{ bus.sourceCity }} → {{ bus.destinationCity }}</p>
+            @if (bus.boardingAddress || bus.dropOffAddress) {
+              <p class="small text-muted mb-1">Boarding / drop-off</p>
+              <p class="mb-2">
+                <span class="text-secondary">Boarding:</span> {{ bus.boardingAddress || '—' }}<br />
+                <span class="text-secondary">Drop-off:</span> {{ bus.dropOffAddress || '—' }}
+              </p>
+            }
             <p class="small text-muted mb-1">Date</p>
             <p class="mb-0">{{ journeyDate }}</p>
           }
@@ -32,6 +39,13 @@
 
           @if (error) {
             <div class="alert alert-danger" role="alert">{{ error }}</div>
+          }
+
+          @if (bus && seats.length === 0) {
+            <div class="alert alert-warning" role="status">
+              This bus has no seat layout in the database yet (0 seats). Add seats from the operator flow (create bus with layout) or seed
+              <code>Seats</code> rows, then reload this page.
+            </div>
           }
 
           <div class="seat-grid-bs mb-4">

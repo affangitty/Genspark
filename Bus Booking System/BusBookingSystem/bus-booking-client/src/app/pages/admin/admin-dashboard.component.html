@@ -62,6 +62,9 @@
             <span class="badge bg-warning-subtle text-warning-emphasis me-2">{{ item.type }}</span>
             <strong>{{ item.displayName }}</strong>
             <p class="small text-muted mb-0">By {{ item.requestedBy }} · {{ item.requestedAt | date: 'short' }}</p>
+            @if (item.additionalContext) {
+              <p class="small text-muted mb-0">{{ item.additionalContext }}</p>
+            }
           </div>
           <div class="col-md-4 text-md-end">
             <button type="button" class="btn btn-success btn-sm me-1" (click)="approve(item, true)">Approve</button>
@@ -73,6 +76,60 @@
       <li class="list-group-item text-center text-muted py-4">No pending approvals.</li>
     }
   </ul>
+</div>
+
+<div class="card app-card border-0 mb-4">
+  <div class="card-header bg-white border-bottom py-3">
+    <h2 class="h5 fw-semibold mb-0">Approved route assignments (live in search)</h2>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Bus</th>
+            <th>Operator</th>
+            <th>Route</th>
+            <th class="text-end">Seats</th>
+            <th class="text-end">Fare</th>
+            <th>Status</th>
+            <th class="text-end">Reviewed</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (a of approvedAssignments; track a.id) {
+            <tr>
+              <td>
+                <div class="fw-semibold">{{ a.busNumber }}</div>
+                <div class="small text-muted">{{ a.busName }}</div>
+              </td>
+              <td>
+                <div>{{ a.operatorName }}</div>
+                <div class="small text-muted">{{ a.operatorStatus }}</div>
+              </td>
+              <td>
+                {{ a.sourceCity }} → {{ a.destinationCity }}
+                <div class="small text-muted">Dep {{ a.departureTime }} · Arr {{ a.arrivalTime }}</div>
+              </td>
+              <td class="text-end">{{ a.seatCount }}</td>
+              <td class="text-end">₹{{ a.baseFare }}</td>
+              <td>
+                <span class="badge bg-secondary-subtle text-secondary">{{ a.busStatus }}</span>
+              </td>
+              <td class="text-end small text-muted">{{ a.reviewedAt ? (a.reviewedAt | date: 'short') : '—' }}</td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="7" class="text-muted text-center py-4">No approved route assignments yet.</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <p class="text-muted small mt-2 mb-0">
+      If search shows no buses, check here that the bus is <strong>Active</strong>, operator is <strong>Approved</strong>, and seat count is &gt; 0.
+    </p>
+  </div>
 </div>
 
 <div class="row g-4 mb-4">

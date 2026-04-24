@@ -3,6 +3,7 @@ using BusBooking.Domain.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using System.Collections.Concurrent;
+using System.Security.Claims;
 
 namespace BusBooking.API.Hubs;
 
@@ -27,7 +28,7 @@ public class SeatHub : Hub
     /// </summary>
     public override async Task OnConnectedAsync()
     {
-        var userId = Context.User?.FindFirst("sub")?.Value ?? Context.ConnectionId;
+        var userId = GetUserId()?.ToString() ?? Context.ConnectionId;
         _userConnections.TryAdd(Context.ConnectionId, userId);
         await base.OnConnectedAsync();
     }
@@ -47,19 +48,19 @@ public class SeatHub : Hub
     /// </summary>
     public async Task<bool> LockSeat(Guid busId, Guid seatId, DateTime journeyDate)
     {
-        var userId = Context.User?.FindFirst("sub")?.Value;
-        if (string.IsNullOrEmpty(userId) || !Guid.TryParse(userId, out var userGuid))
+        var userGuid = GetUserId();
+        if (userGuid == null)
             return false;
 
         var cfg = await _unitOfWork.PlatformConfig.GetCurrentAsync();
         var lockDurationSeconds = Math.Clamp((cfg?.SeatLockDurationMinutes ?? 10) * 60, 60, 7200);
-        var success = await _seatLockService.LockSeatAsync(seatId, userGuid, lockDurationSeconds, journeyDate.Date);
+        var success = await _seatLockService.LockSeatAsync(seatId, userGuid.Value, lockDurationSeconds, journeyDate.Date);
 
         if (success)
         {
             // Broadcast seat lock to all clients viewing this bus
             await Clients.Group($"Bus_{busId}_{journeyDate:yyyyMMdd}")
-                .SendAsync("SeatLocked", seatId, userGuid);
+                .SendAsync("SeatLocked", seatId, userGuid.Value);
         }
 
         return success;
@@ -70,11 +71,11 @@ public class SeatHub : Hub
     /// </summary>
     public async Task<bool> UnlockSeat(Guid busId, Guid seatId, DateTime journeyDate)
     {
-        var userId = Context.User?.FindFirst("sub")?.Value;
-        if (string.IsNullOrEmpty(userId) || !Guid.TryParse(userId, out var userGuid))
+        var userGuid = GetUserId();
+        if (userGuid == null)
             return false;
 
-        var success = await _seatLockService.UnlockSeatAsync(seatId, userGuid, journeyDate.Date);
+        var success = await _seatLockService.UnlockSeatAsync(seatId, userGuid.Value, journeyDate.Date);
 
         if (success)
         {
@@ -129,6 +130,13 @@ public class SeatHub : Hub
         var groupName = $"Bus_{busId}_{journeyDate:yyyyMMdd}";
         // Server should respond with current seat status
         await Clients.Caller.SendAsync("RequestSeatStatusAck", busId, journeyDate);
+    }
+
+    private Guid? GetUserId()
+    {
+        var claim = Context.User?.FindFirst(ClaimTypes.NameIdentifier) ?? Context.User?.FindFirst("sub");
+        if (claim == null) return null;
+        return Guid.TryParse(claim.Value, out var id) ? id : null;
     }
 }
 

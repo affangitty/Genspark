@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using BusBooking.Application.Common;
 using BusBooking.Application.DTOs.Booking;
+using BusBooking.Domain;
 using BusBooking.Domain.Entities;
 using BusBooking.Domain.Enums;
 using BusBooking.Domain.Interfaces;
@@ -46,11 +47,13 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
         if (user == null)
             throw new ArgumentException("User not found");
 
+        var journeyDateUtc = JourneyDateUtc.ToUtcCalendarStart(request.JourneyDate);
+
         // Check if all requested seats are still available
         var bookedSeats = await _unitOfWork.Bookings.GetBookedSeatIdsByBusAndDateAsync(
-            request.BusId, request.JourneyDate);
+            request.BusId, journeyDateUtc);
         var lockedSeats = await _unitOfWork.SeatLocks.GetActiveLockSeatIdsByBusAndDateAsync(
-            request.BusId, request.JourneyDate, exceptUserId: request.UserId);
+            request.BusId, journeyDateUtc, exceptUserId: request.UserId);
         var unavailableSeats = new HashSet<Guid>(bookedSeats.Concat(lockedSeats));
 
         foreach (var passengerDto in request.Passengers)
@@ -82,7 +85,7 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
             BookingReference = GenerateBookingReference(),
             UserId = request.UserId,
             BusId = request.BusId,
-            JourneyDate = request.JourneyDate,
+            JourneyDate = journeyDateUtc,
             Status = BookingStatus.Pending,
             BaseFareTotal = baseFareTotal,
             ConvenienceFee = convenienceFee,
@@ -153,11 +156,33 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
         // Generate ticket
         var ticketPath = await _ticketService.GenerateTicketFilePathAsync(booking.Id);
 
-        // Send confirmation email
-        await _mailService.SendBookingConfirmationAsync(user.Email, booking.BookingReference, ticketPath);
+        // Send confirmation email without blocking booking confirmation.
+        // SMTP can be slow or misconfigured in dev; booking should succeed even if email fails.
+        var busNumber = bus.BusNumber;
+        var routeLabel = $"{bus.Route?.SourceCity ?? "—"} → {bus.Route?.DestinationCity ?? "—"}";
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await _mailService.SendBookingConfirmationDetailedAsync(
+                    user.Email,
+                    booking.BookingReference,
+                    busNumber,
+                    routeLabel,
+                    journeyDateUtc,
+                    booking.BoardingAddress,
+                    booking.DropOffAddress,
+                    booking.TotalAmount,
+                    ticketPath);
+            }
+            catch
+            {
+                // Intentionally swallow: email is a side-effect.
+            }
+        }, CancellationToken.None);
 
         // Release seat locks after successful booking
-        await ReleaseSeatLocks(request.JourneyDate, request.Passengers, cancellationToken);
+        await ReleaseSeatLocks(journeyDateUtc, request.Passengers, cancellationToken);
 
         // Retrieve updated booking for response
         var finalBooking = await _unitOfWork.Bookings.GetByIdAsync(booking.Id);
@@ -176,7 +201,7 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
     private async Task ReleaseSeatLocks(DateTime journeyDate, IEnumerable<PassengerDto> passengers, CancellationToken cancellationToken)
     {
         var seatIds = passengers.Select(p => p.SeatId).ToList();
-        await _unitOfWork.SeatLocks.ReleaseLocksForSeatsAsync(seatIds, journeyDate.Date);
+        await _unitOfWork.SeatLocks.ReleaseLocksForSeatsAsync(seatIds, journeyDate);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 

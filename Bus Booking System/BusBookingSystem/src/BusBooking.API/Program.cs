@@ -70,6 +70,12 @@ if (!app.Environment.IsDevelopment())
 app.UseAuthentication();
 app.UseAuthorization();
 
+// This host is the REST API only (no SPA). Browsers hitting http://localhost:5153/ otherwise see 404.
+if (app.Environment.IsDevelopment())
+    app.MapGet("/", () => Results.Redirect("/swagger")).AllowAnonymous();
+else
+    app.MapGet("/", () => Results.Text("Bus Booking API — JSON under /api/…  Health: GET /health", "text/plain")).AllowAnonymous();
+
 app.MapControllers();
 app.MapHub<SeatHub>("/hubs/seats");
 

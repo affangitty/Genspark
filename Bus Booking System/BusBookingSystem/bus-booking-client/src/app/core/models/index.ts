@@ -24,6 +24,8 @@ export interface Bus {
   operatorName: string;
   sourceCity: string;
   destinationCity: string;
+  boardingAddress?: string | null;
+  dropOffAddress?: string | null;
   departureTime: string;
   arrivalTime: string;
   totalSeats: number;
@@ -110,7 +112,7 @@ export interface OperatorBookingItem {
 }
 
 export interface AdminApprovalQueueItem {
-  type: 'Operator' | 'Bus';
+  type: 'Operator' | 'Bus' | 'RouteAssignment';
   id: string;
   displayName: string;
   requestedBy: string;

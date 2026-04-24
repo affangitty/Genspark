@@ -16,6 +16,8 @@ public class BusResponseDto
     public string OperatorName { get; set; } = string.Empty;
     public string SourceCity { get; set; } = string.Empty;
     public string DestinationCity { get; set; } = string.Empty;
+    public string? BoardingAddress { get; set; }
+    public string? DropOffAddress { get; set; }
     public TimeSpan? DepartureTime { get; set; }
     public TimeSpan? ArrivalTime { get; set; }
     public int TotalSeats { get; set; }

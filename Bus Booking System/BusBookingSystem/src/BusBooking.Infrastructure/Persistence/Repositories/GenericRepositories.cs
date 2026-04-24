@@ -1,3 +1,4 @@
+using BusBooking.Domain;
 using BusBooking.Domain.Entities;
 using BusBooking.Domain.Enums;
 using BusBooking.Domain.Interfaces;
@@ -73,7 +74,13 @@ public class BusRepository : IBusRepository
             .Include(b => b.Layout)
             .Include(b => b.Route)
             .Include(b => b.Seats)
-            .Where(b => b.RouteId == routeId)
+            .Where(b =>
+                b.RouteId == routeId
+                || _context.BusRouteAssignments.Any(a =>
+                    a.BusId == b.Id
+                    && a.RouteId == routeId
+                    && a.IsApproved
+                    && !a.IsRejected))
             .ToListAsync();
 
     public async Task<IEnumerable<Bus>> GetByOperatorIdAsync(Guid operatorId) =>
@@ -227,14 +234,18 @@ public class BookingRepository : IBookingRepository
             .FirstOrDefaultAsync(b => b.BookingReference == bookingReference);
 
     public async Task<IEnumerable<Guid>> GetBookedSeatIdsByBusAndDateAsync(
-        Guid busId, DateTime journeyDate) =>
-        await _context.BookingPassengers
-            .Include(bp => bp.Booking)
+        Guid busId, DateTime journeyDate)
+    {
+        // Use [dayStart, dayEnd) — avoids EF/Npgsql failing to translate `.Date` on timestamp columns.
+        var (dayStart, dayEndExclusive) = JourneyDateUtc.UtcDayBounds(journeyDate);
+        return await _context.BookingPassengers
+            .AsNoTracking()
             .Where(bp => bp.Booking.BusId == busId
-                && bp.Booking.JourneyDate.Date == journeyDate.Date
+                && bp.Booking.JourneyDate >= dayStart && bp.Booking.JourneyDate < dayEndExclusive
                 && bp.Booking.Status == BookingStatus.Confirmed)
             .Select(bp => bp.SeatId)
             .ToListAsync();
+    }
 
     public async Task AddAsync(Booking booking) =>
         await _context.Bookings.AddAsync(booking);
@@ -407,9 +418,11 @@ public class SeatLockRepository : ISeatLockRepository
     public async Task<IEnumerable<Guid>> GetActiveLockSeatIdsByBusAndDateAsync(
         Guid busId, DateTime journeyDate, Guid? exceptUserId = null)
     {
+        var (dayStart, dayEndExclusive) = JourneyDateUtc.UtcDayBounds(journeyDate);
         var q = _context.SeatLocks
+            .AsNoTracking()
             .Where(sl => sl.BusId == busId
-                && sl.JourneyDate.Date == journeyDate.Date
+                && sl.JourneyDate >= dayStart && sl.JourneyDate < dayEndExclusive
                 && !sl.IsReleased
                 && sl.ExpiresAt > DateTime.UtcNow);
         if (exceptUserId.HasValue)
@@ -417,12 +430,15 @@ public class SeatLockRepository : ISeatLockRepository
         return await q.Select(sl => sl.SeatId).ToListAsync();
     }
 
-    public async Task<SeatLock?> GetActiveLockAsync(Guid seatId, DateTime journeyDate) =>
-        await _context.SeatLocks
+    public async Task<SeatLock?> GetActiveLockAsync(Guid seatId, DateTime journeyDate)
+    {
+        var (dayStart, dayEndExclusive) = JourneyDateUtc.UtcDayBounds(journeyDate);
+        return await _context.SeatLocks
             .FirstOrDefaultAsync(sl => sl.SeatId == seatId
-                && sl.JourneyDate.Date == journeyDate.Date
+                && sl.JourneyDate >= dayStart && sl.JourneyDate < dayEndExclusive
                 && !sl.IsReleased
                 && sl.ExpiresAt > DateTime.UtcNow);
+    }
 
     public async Task AddAsync(SeatLock seatLock) =>
         await _context.SeatLocks.AddAsync(seatLock);
@@ -436,9 +452,10 @@ public class SeatLockRepository : ISeatLockRepository
         if (targetIds.Count == 0)
             return;
 
+        var (dayStart, dayEndExclusive) = JourneyDateUtc.UtcDayBounds(journeyDate);
         var activeLocks = await _context.SeatLocks
             .Where(sl => targetIds.Contains(sl.SeatId)
-                && sl.JourneyDate.Date == journeyDate.Date
+                && sl.JourneyDate >= dayStart && sl.JourneyDate < dayEndExclusive
                 && !sl.IsReleased
                 && sl.ExpiresAt > DateTime.UtcNow)
             .ToListAsync();
@@ -475,6 +492,14 @@ public class BusRouteAssignmentRepository : IBusRouteAssignmentRepository
             .Include(a => a.Route)
             .Where(a => !a.IsApproved && !a.IsRejected)
             .OrderByDescending(a => a.CreatedAt)
+            .ToListAsync();
+
+    public async Task<IEnumerable<BusRouteAssignment>> GetApprovedAsync() =>
+        await _context.BusRouteAssignments
+            .Include(a => a.Bus).ThenInclude(b => b.Operator)
+            .Include(a => a.Route)
+            .Where(a => a.IsApproved && !a.IsRejected)
+            .OrderByDescending(a => a.ReviewedAt ?? a.CreatedAt)
             .ToListAsync();
 
     public async Task AddAsync(BusRouteAssignment assignment) =>

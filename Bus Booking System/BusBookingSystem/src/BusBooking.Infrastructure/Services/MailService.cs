@@ -38,6 +38,7 @@ public class MailService : IMailService
             {
                 client.EnableSsl = true;
                 client.Credentials = new NetworkCredential(_senderEmail, _senderPassword);
+                client.Timeout = 5000;
 
                 var message = new MailMessage
                 {
@@ -48,7 +49,7 @@ public class MailService : IMailService
                 };
 
                 message.To.Add(to);
-                await client.SendMailAsync(message);
+                await SendWithTimeout(client, message, timeoutMs: 5000);
             }
         }
         catch (Exception ex)
@@ -85,6 +86,7 @@ public class MailService : IMailService
             {
                 client.EnableSsl = true;
                 client.Credentials = new NetworkCredential(_senderEmail, _senderPassword);
+                client.Timeout = 5000;
 
                 var message = new MailMessage
                 {
@@ -103,13 +105,51 @@ public class MailService : IMailService
                     message.Attachments.Add(attachment);
                 }
 
-                await client.SendMailAsync(message);
+                await SendWithTimeout(client, message, timeoutMs: 7000);
             }
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Booking confirmation email failed: {ex.Message}");
         }
+    }
+
+    public async Task SendBookingConfirmationDetailedAsync(
+        string to,
+        string bookingReference,
+        string busNumber,
+        string route,
+        DateTime journeyDate,
+        string boardingAddress,
+        string dropOffAddress,
+        decimal totalAmount,
+        string ticketPath)
+    {
+        var subject = $"Booking Confirmed — {busNumber} — Ref: {bookingReference}";
+        var safeRoute = WebUtility.HtmlEncode(route);
+        var safeBusNumber = WebUtility.HtmlEncode(busNumber);
+        var safeRef = WebUtility.HtmlEncode(bookingReference);
+        var safeBoard = WebUtility.HtmlEncode(boardingAddress);
+        var safeDrop = WebUtility.HtmlEncode(dropOffAddress);
+
+        var body = $@"
+<html>
+  <body style=""font-family: Arial, sans-serif;"">
+    <h2>Booking Confirmed</h2>
+    <p><strong>Booking Reference:</strong> {safeRef}</p>
+    <p><strong>Bus:</strong> {safeBusNumber}</p>
+    <p><strong>Route:</strong> {safeRoute}</p>
+    <p><strong>Journey Date:</strong> {journeyDate:dd MMM yyyy}</p>
+    <p><strong>Boarding:</strong> {safeBoard}<br/>
+       <strong>Drop-off:</strong> {safeDrop}</p>
+    <p><strong>Total Paid:</strong> ₹{totalAmount:F2}</p>
+    <p>Your ticket PDF is attached (if configured) and is also downloadable from your dashboard.</p>
+    <p style=""margin-top:16px""><strong>Please arrive 15 minutes before departure.</strong></p>
+    <p>— Bus Booking System</p>
+  </body>
+</html>";
+
+        await SendEmailWithOptionalAttachment(to, subject, body, ticketPath, timeoutMs: 7000);
     }
 
     /// <summary>
@@ -162,6 +202,53 @@ public class MailService : IMailService
         body.AppendLine("</html>");
 
         await SendEmailAsync(to, subject, body.ToString());
+    }
+
+    private static async Task SendWithTimeout(SmtpClient client, MailMessage message, int timeoutMs)
+    {
+        var sendTask = client.SendMailAsync(message);
+        var done = await Task.WhenAny(sendTask, Task.Delay(timeoutMs)).ConfigureAwait(false);
+        if (done != sendTask)
+            throw new TimeoutException($"SMTP send timed out after {timeoutMs}ms.");
+        await sendTask.ConfigureAwait(false);
+    }
+
+    private async Task SendEmailWithOptionalAttachment(
+        string to,
+        string subject,
+        string body,
+        string? attachmentPath,
+        int timeoutMs)
+    {
+        try
+        {
+            using (var client = new SmtpClient(_smtpServer, _smtpPort))
+            {
+                client.EnableSsl = true;
+                client.Credentials = new NetworkCredential(_senderEmail, _senderPassword);
+                client.Timeout = 5000;
+
+                var message = new MailMessage
+                {
+                    From = new MailAddress(_senderEmail, "Bus Booking System"),
+                    Subject = subject,
+                    Body = body,
+                    IsBodyHtml = true
+                };
+
+                message.To.Add(to);
+                if (!string.IsNullOrWhiteSpace(attachmentPath) && File.Exists(attachmentPath))
+                {
+                    message.Attachments.Add(new Attachment(attachmentPath));
+                }
+
+                await SendWithTimeout(client, message, timeoutMs);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Email send failed: {ex.Message}");
+        }
     }
 }
 

@@ -21,6 +21,12 @@
       <div class="card-body">
         <h2 class="h5 fw-semibold mb-3">Create seat layout</h2>
         <p class="small text-muted">Generates a simple grid JSON for seats (admin must still approve the bus).</p>
+        @if (layoutSuccess) {
+          <div class="alert alert-success small" role="status">{{ layoutSuccess }}</div>
+        }
+        @if (layoutError) {
+          <div class="alert alert-danger small" role="alert">{{ layoutError }}</div>
+        }
         <div class="row g-2">
           <div class="col-md-6">
             <label class="form-label">Layout name</label>
@@ -43,6 +49,12 @@
     <div class="card app-card border-0 h-100">
       <div class="card-body">
         <h2 class="h5 fw-semibold mb-3">Register new bus</h2>
+        @if (busSuccess) {
+          <div class="alert alert-success small" role="status">{{ busSuccess }}</div>
+        }
+        @if (busError) {
+          <div class="alert alert-danger small" role="alert">{{ busError }}</div>
+        }
         <div class="row g-2">
           <div class="col-md-6">
             <label class="form-label">Bus number</label>
@@ -56,9 +68,7 @@
             <label class="form-label">Layout</label>
             <select class="form-select" [(ngModel)]="newBusLayoutId">
               <option value="">Select layout</option>
-              @for (lo of layouts; track lo.id) {
-                <option [value]="lo.id">{{ lo.layoutName }} ({{ lo.totalSeats }} seats)</option>
-              }
+              <option *ngFor="let lo of layouts" [value]="lo.id">{{ lo.layoutName }} ({{ lo.totalSeats }} seats)</option>
             </select>
           </div>
           <div class="col-md-4">
@@ -69,6 +79,66 @@
         <button type="button" class="btn btn-primary mt-3" (click)="createBus()">Submit bus for approval</button>
       </div>
     </div>
+  </div>
+</div>
+
+<div class="card app-card border-0 mb-4">
+  <div class="card-body">
+    <h2 class="h5 fw-semibold mb-2">Operator locations (boarding / drop-off)</h2>
+    <p class="small text-muted mb-3">
+      Add at least one location in the route source city and destination city. These become the boarding and drop-off addresses for bookings.
+    </p>
+    @if (locationSuccess) {
+      <div class="alert alert-success small mb-3" role="status">{{ locationSuccess }}</div>
+    }
+    @if (locationError) {
+      <div class="alert alert-danger small mb-3" role="alert">{{ locationError }}</div>
+    }
+
+    <div class="row g-2 align-items-end mb-3">
+      <div class="col-md-3">
+        <label class="form-label">City</label>
+        <input type="text" class="form-control" [(ngModel)]="newLocationCity" placeholder="e.g. Bangalore" />
+      </div>
+      <div class="col-md-5">
+        <label class="form-label">Address</label>
+        <input type="text" class="form-control" [(ngModel)]="newLocationAddressLine" placeholder="Street / area" />
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">State</label>
+        <input type="text" class="form-control" [(ngModel)]="newLocationState" />
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Pin</label>
+        <input type="text" class="form-control" [(ngModel)]="newLocationPinCode" />
+      </div>
+      <div class="col-12 col-md-6">
+        <label class="form-label">Landmark (optional)</label>
+        <input type="text" class="form-control" [(ngModel)]="newLocationLandmark" />
+      </div>
+      <div class="col-12 col-md-6 d-flex justify-content-end">
+        <button type="button" class="btn btn-primary" (click)="addLocation()">Add location</button>
+      </div>
+    </div>
+
+    <ul class="list-group">
+      @for (loc of locations; track loc.id) {
+        <li class="list-group-item d-flex justify-content-between align-items-start gap-3">
+          <div>
+            <strong>{{ loc.city }}</strong>
+            <div class="small text-muted">
+              {{ loc.addressLine }}
+              @if (loc.landmark) { <span>· {{ loc.landmark }}</span> }
+              @if (loc.state) { <span>· {{ loc.state }}</span> }
+              @if (loc.pinCode) { <span>· {{ loc.pinCode }}</span> }
+            </div>
+          </div>
+          <button type="button" class="btn btn-outline-danger btn-sm" (click)="removeLocation(loc.id)">Remove</button>
+        </li>
+      } @empty {
+        <li class="list-group-item text-center text-muted">No locations yet.</li>
+      }
+    </ul>
   </div>
 </div>
 
@@ -138,29 +208,29 @@
     @if (routeAssignmentError) {
       <div class="alert alert-danger small mb-3" role="alert">{{ routeAssignmentError }}</div>
     }
-    <div class="row g-3 align-items-end">
-      <div class="col-md-5">
-        <label class="form-label">Bus</label>
-        <select class="form-select" [(ngModel)]="selectedBusId">
-          <option value="">Select bus</option>
-          @for (bus of buses; track bus.id) {
-            <option [value]="bus.id">{{ bus.busNumber }}</option>
-          }
-        </select>
+    @if (assignmentSelectsReady) {
+      <div class="row g-3 align-items-end" [formGroup]="routeAssignForm">
+        <div class="col-md-5">
+          <label class="form-label" for="opRouteBus">Bus</label>
+          <select id="opRouteBus" class="form-select" formControlName="busId">
+            <option value="">Select bus</option>
+            <option *ngFor="let bus of buses" [value]="bus.id">{{ bus.busNumber }} — {{ bus.busName }}</option>
+          </select>
+        </div>
+        <div class="col-md-5">
+          <label class="form-label" for="opRouteRoute">Route</label>
+          <select id="opRouteRoute" class="form-select" formControlName="routeId">
+            <option value="">Select route</option>
+            <option *ngFor="let route of routes" [value]="route.id">{{ route.sourceCity }} → {{ route.destinationCity }}</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <button type="button" class="btn btn-primary w-100" (click)="requestRouteAssignment()">Submit</button>
+        </div>
       </div>
-      <div class="col-md-5">
-        <label class="form-label">Route</label>
-        <select class="form-select" [(ngModel)]="selectedRouteId">
-          <option value="">Select route</option>
-          @for (route of routes; track route.id) {
-            <option [value]="route.id">{{ route.sourceCity }} → {{ route.destinationCity }}</option>
-          }
-        </select>
-      </div>
-      <div class="col-md-2">
-        <button type="button" class="btn btn-primary w-100" (click)="requestRouteAssignment()">Submit</button>
-      </div>
-    </div>
+    } @else {
+      <p class="text-muted small mb-0">Loading route form…</p>
+    }
   </div>
 </div>
 

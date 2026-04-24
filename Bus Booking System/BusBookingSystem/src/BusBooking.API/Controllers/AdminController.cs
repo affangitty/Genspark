@@ -355,6 +355,7 @@ public class AdminController : ControllerBase
     {
         var pendingOperators = await _unitOfWork.BusOperators.GetByStatusAsync(OperatorStatus.Pending);
         var pendingBuses = await _unitOfWork.Buses.GetByStatusAsync(BusStatus.PendingApproval);
+        var pendingRouteAssignments = (await _unitOfWork.BusRouteAssignments.GetPendingAsync()).ToList();
 
         var operatorItems = pendingOperators.Select(o => new ApprovalQueueItemDto
         {
@@ -380,8 +381,23 @@ public class AdminController : ControllerBase
                 : "Route not assigned"
         });
 
+        var routeAssignmentItems = pendingRouteAssignments.Select(a => new ApprovalQueueItemDto
+        {
+            Type = "RouteAssignment",
+            Id = a.Id,
+            DisplayName = $"{a.Bus.BusNumber} / {a.Bus.BusName} → {a.Route.SourceCity} – {a.Route.DestinationCity}",
+            RequestedBy = a.Bus.Operator?.CompanyName ?? "Unknown Operator",
+            RequestedAt = a.CreatedAt,
+            Status = "Pending",
+            AdditionalContext =
+                "Dep " + a.DepartureTime.ToString(@"hh\:mm")
+                + ", Arr " + a.ArrivalTime.ToString(@"hh\:mm")
+                + ", ₹" + a.BaseFare.ToString("F0")
+        });
+
         var queue = operatorItems
             .Concat(busItems)
+            .Concat(routeAssignmentItems)
             .OrderBy(item => item.RequestedAt)
             .ToList();
 
@@ -390,6 +406,7 @@ public class AdminController : ControllerBase
             totalPending = queue.Count,
             pendingOperators = operatorItems.Count(),
             pendingBuses = busItems.Count(),
+            pendingRouteAssignments = routeAssignmentItems.Count(),
             items = queue
         });
     }

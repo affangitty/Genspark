@@ -31,6 +31,9 @@
           <span class="visually-hidden">Loading…</span>
         </div>
         <p class="text-muted small mt-2 mb-0">Loading bookings…</p>
+        <p class="text-muted small mt-2 mb-0">
+          Debug: loading={{ loading }} · tab={{ tab }} · bookings={{ bookings.length }} · error={{ error ? 'yes' : 'no' }}
+        </p>
       </div>
     } @else {
       <ul class="list-group list-group-flush">
@@ -47,6 +50,11 @@
               </div>
               <div class="col-md-4 text-md-end">
                 <p class="fw-semibold text-success mb-2 mb-md-0">₹{{ booking.totalAmount }}</p>
+                @if (booking.status === 'Confirmed') {
+                  <button type="button" class="btn btn-outline-primary btn-sm me-2" (click)="downloadTicket(booking)">
+                    Download ticket
+                  </button>
+                }
                 @if (tab === 'upcoming' && booking.status === 'Confirmed') {
                   <button type="button" class="btn btn-outline-danger btn-sm" (click)="cancel(booking)">Cancel booking</button>
                 }

@@ -1,5 +1,5 @@
 import { NgModule, provideBrowserGlobalErrorListeners } from '@angular/core';
-import { BrowserModule, provideClientHydration } from '@angular/platform-browser';
+import { BrowserModule, provideClientHydration, withNoHttpTransferCache } from '@angular/platform-browser';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 
 import { AppRoutingModule } from './app-routing-module';
@@ -35,8 +35,9 @@ import { AdminDashboardComponent } from './pages/admin/admin-dashboard.component
   ],
   providers: [
     provideBrowserGlobalErrorListeners(),
-    // withEventReplay() can defer DOM updates and leave HTTP-driven spinners stuck; keep hydration only.
-    provideClientHydration(),
+    // Without withNoHttpTransferCache(), HttpClient stays in transfer mode until ApplicationRef is stable;
+    // if the app never stabilizes, API calls (e.g. bus search) never complete and spinners hang.
+    provideClientHydration(withNoHttpTransferCache()),
   ],
   bootstrap: [App]
 })

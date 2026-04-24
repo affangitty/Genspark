@@ -1,5 +1,6 @@
 using BusBooking.Application.Common;
 using BusBooking.Application.DTOs.Bus;
+using BusBooking.Domain;
 using BusBooking.Domain.Enums;
 using BusBooking.Domain.Interfaces;
 using MediatR;
@@ -24,8 +25,8 @@ public class SearchBusesQueryHandler : IRequestHandler<SearchBusesQuery, List<Bu
 
     public async Task<List<BusResponseDto>> Handle(SearchBusesQuery request, CancellationToken cancellationToken)
     {
-        // Normalize to calendar date so seat/lock queries match stored journey dates (same as other endpoints).
-        var journeyDate = request.JourneyDate.Date;
+        // UTC calendar day for timestamptz columns and Npgsql parameter rules.
+        var journeyDate = JourneyDateUtc.ToUtcCalendarStart(request.JourneyDate);
 
         var allRoutes = await _unitOfWork.Routes.GetAllActiveAsync();
         
@@ -36,6 +37,7 @@ public class SearchBusesQueryHandler : IRequestHandler<SearchBusesQuery, List<Bu
         ).ToList();
 
         var result = new List<BusResponseDto>();
+        var platformConfig = await _unitOfWork.PlatformConfig.GetCurrentAsync();
 
         foreach (var route in matchedRoutes)
         {
@@ -50,10 +52,19 @@ public class SearchBusesQueryHandler : IRequestHandler<SearchBusesQuery, List<Bu
                 if (bus.Status != BusStatus.Active || bus.Operator.Status != OperatorStatus.Approved)
                     continue;
 
+                // Operator must have office locations in both source and destination cities
+                // so we can show boarding + drop-off, and so booking doesn't fail later with 409.
+                var (boardingAddress, dropOffAddress) = await ResolveBoardingAddressesAsync(bus);
+                if (boardingAddress == null || dropOffAddress == null)
+                    continue;
+
                 var bookedSeatIds = await _unitOfWork.Bookings.GetBookedSeatIdsByBusAndDateAsync(bus.Id, journeyDate);
                 var lockedSeatIds = await _unitOfWork.SeatLocks.GetActiveLockSeatIdsByBusAndDateAsync(
                     bus.Id, journeyDate, exceptUserId: null);
                 var totalSeats = bus.Seats.Count(s => s.IsActive);
+                // If seats were not generated for this bus yet, do not surface it in search.
+                if (totalSeats <= 0)
+                    continue;
                 var unavailable = bookedSeatIds.Concat(lockedSeatIds).ToHashSet();
                 var availableSeats = totalSeats - unavailable.Count;
 
@@ -61,7 +72,6 @@ public class SearchBusesQueryHandler : IRequestHandler<SearchBusesQuery, List<Bu
                 if (request.PassengerCount.HasValue && availableSeats < request.PassengerCount)
                     continue;
 
-                var platformConfig = await _unitOfWork.PlatformConfig.GetCurrentAsync();
                 var convenienceFee = PlatformFeeCalculator.ComputeConvenienceForSingleSeat(platformConfig, bus.BaseFare);
 
                 var busDto = new BusResponseDto
@@ -72,6 +82,8 @@ public class SearchBusesQueryHandler : IRequestHandler<SearchBusesQuery, List<Bu
                     OperatorName = bus.Operator.CompanyName,
                     SourceCity = route.SourceCity,
                     DestinationCity = route.DestinationCity,
+                    BoardingAddress = boardingAddress,
+                    DropOffAddress = dropOffAddress,
                     DepartureTime = bus.DepartureTime,
                     ArrivalTime = bus.ArrivalTime,
                     TotalSeats = totalSeats,
@@ -98,11 +110,18 @@ public class SearchBusesQueryHandler : IRequestHandler<SearchBusesQuery, List<Bu
         if (string.IsNullOrEmpty(source) || string.IsNullOrEmpty(target))
             return false;
 
-        source = NormalizeName(source);
-        target = NormalizeName(target);
+        source = CanonicalCityName(NormalizeName(source));
+        target = CanonicalCityName(NormalizeName(target));
 
         if (source == target)
             return true;
+
+        // Substring match for longer names (e.g. "north mumbai" vs "mumbai")
+        if (source.Length >= 4 && target.Length >= 4)
+        {
+            if (source.Contains(target, StringComparison.Ordinal) || target.Contains(source, StringComparison.Ordinal))
+                return true;
+        }
 
         // Levenshtein distance based matching
         var distance = LevenshteinDistance(source, target);
@@ -110,6 +129,20 @@ public class SearchBusesQueryHandler : IRequestHandler<SearchBusesQuery, List<Bu
         var similarity = 1.0 - (double)distance / maxLength;
 
         return similarity >= threshold;
+    }
+
+    /// <summary>
+    /// Map common alternate spellings so route rows match user input (e.g. Bengaluru vs Bangalore).
+    /// </summary>
+    private static string CanonicalCityName(string normalizedLower)
+    {
+        return normalizedLower switch
+        {
+            "bengaluru" or "blr" => "bangalore",
+            "bombay" => "mumbai",
+            "calcutta" => "kolkata",
+            _ => normalizedLower
+        };
     }
 
     /// <summary>
@@ -148,4 +181,40 @@ public class SearchBusesQueryHandler : IRequestHandler<SearchBusesQuery, List<Bu
 
         return dp[m, n];
     }
+
+    private async Task<(string? Boarding, string? DropOff)> ResolveBoardingAddressesAsync(BusBooking.Domain.Entities.Bus bus)
+    {
+        var locations = (await _unitOfWork.BusOperators.GetLocationsByOperatorIdAsync(bus.OperatorId)).ToList();
+        if (locations.Count == 0)
+            return (null, null);
+
+        var route = bus.Route;
+        if (route == null)
+            return (FormatOperatorLocation(locations[0]), FormatOperatorLocation(locations.Count > 1 ? locations[^1] : locations[0]));
+
+        var boarding = locations.FirstOrDefault(l => CityMatchesRouteCity(l.City, route.SourceCity));
+        var dropOff = locations.FirstOrDefault(l => CityMatchesRouteCity(l.City, route.DestinationCity));
+
+        return (boarding == null ? null : FormatOperatorLocation(boarding),
+            dropOff == null ? null : FormatOperatorLocation(dropOff));
+    }
+
+    private static string FormatOperatorLocation(BusBooking.Domain.Entities.OperatorLocation l)
+    {
+        var parts = new[] { l.AddressLine, l.Landmark, l.City, l.State, l.PinCode }
+            .Where(s => !string.IsNullOrWhiteSpace(s));
+        return string.Join(", ", parts);
+    }
+
+    private static bool CityMatchesRouteCity(string locationCity, string routeCity)
+    {
+        var a = NormalizeCityToken(locationCity);
+        var b = NormalizeCityToken(routeCity);
+        if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b))
+            return false;
+        return a == b || a.Contains(b, StringComparison.Ordinal) || b.Contains(a, StringComparison.Ordinal);
+    }
+
+    private static string NormalizeCityToken(string name) =>
+        Regex.Replace(name.ToLowerInvariant().Trim(), @"\s+", " ");
 }

@@ -73,7 +73,7 @@ public class AdminRevenueDashboardDto
 
 public class ApprovalQueueItemDto
 {
-    public string Type { get; set; } = string.Empty; // Operator | Bus
+    public string Type { get; set; } = string.Empty; // Operator | Bus | RouteAssignment
     public Guid Id { get; set; }
     public string DisplayName { get; set; } = string.Empty;
     public string RequestedBy { get; set; } = string.Empty;

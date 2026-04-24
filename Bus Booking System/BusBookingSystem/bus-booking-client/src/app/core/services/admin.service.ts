@@ -16,12 +16,14 @@ export class AdminService {
     totalPending: number;
     pendingOperators: number;
     pendingBuses: number;
+    pendingRouteAssignments: number;
     items: AdminApprovalQueueItem[];
   }> {
     return this.http.get<{
       totalPending: number;
       pendingOperators: number;
       pendingBuses: number;
+      pendingRouteAssignments: number;
       items: AdminApprovalQueueItem[];
     }>(`${this.apiUrl}/approvals/queue`);
   }
@@ -38,6 +40,59 @@ export class AdminService {
       isApproved,
       adminNotes
     });
+  }
+
+  approveRouteAssignment(assignmentId: string, isApproved: boolean, adminNotes?: string): Observable<unknown> {
+    return this.http.post(`${this.busApiUrl}/route-assignments/${assignmentId}/approve`, {
+      isApproved,
+      adminNotes
+    });
+  }
+
+  getApprovedRouteAssignments(): Observable<
+    Array<{
+      id: string;
+      busId: string;
+      busNumber: string;
+      busName: string;
+      busStatus: string;
+      seatCount: number;
+      operatorId: string;
+      operatorName: string;
+      operatorStatus: string;
+      routeId: string;
+      sourceCity: string;
+      destinationCity: string;
+      departureTime: string;
+      arrivalTime: string;
+      durationMinutes: number;
+      baseFare: number;
+      reviewedAt: string | null;
+      adminNotes: string | null;
+    }>
+  > {
+    return this.http.get<
+      Array<{
+        id: string;
+        busId: string;
+        busNumber: string;
+        busName: string;
+        busStatus: string;
+        seatCount: number;
+        operatorId: string;
+        operatorName: string;
+        operatorStatus: string;
+        routeId: string;
+        sourceCity: string;
+        destinationCity: string;
+        departureTime: string;
+        arrivalTime: string;
+        durationMinutes: number;
+        baseFare: number;
+        reviewedAt: string | null;
+        adminNotes: string | null;
+      }>
+    >(`${this.busApiUrl}/route-assignments/approved`);
   }
 
   getRevenueDashboard(): Observable<AdminRevenueDashboard> {

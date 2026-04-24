@@ -79,7 +79,7 @@ namespace BusBooking.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("Bookings");
+                    b.ToTable("Bookings", (string)null);
                 });
 
             modelBuilder.Entity("BusBooking.Domain.Entities.BookingPassenger", b =>
@@ -124,7 +124,7 @@ namespace BusBooking.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("SeatId");
 
-                    b.ToTable("BookingPassengers");
+                    b.ToTable("BookingPassengers", (string)null);
                 });
 
             modelBuilder.Entity("BusBooking.Domain.Entities.Bus", b =>
@@ -190,7 +190,7 @@ namespace BusBooking.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("RouteId");
 
-                    b.ToTable("Buses");
+                    b.ToTable("Buses", (string)null);
                 });
 
             modelBuilder.Entity("BusBooking.Domain.Entities.BusLayout", b =>
@@ -233,7 +233,7 @@ namespace BusBooking.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("OperatorId");
 
-                    b.ToTable("BusLayouts");
+                    b.ToTable("BusLayouts", (string)null);
                 });
 
             modelBuilder.Entity("BusBooking.Domain.Entities.BusOperator", b =>
@@ -292,7 +292,7 @@ namespace BusBooking.Infrastructure.Persistence.Migrations
                     b.HasIndex("Email")
                         .IsUnique();
 
-                    b.ToTable("BusOperators");
+                    b.ToTable("BusOperators", (string)null);
                 });
 
             modelBuilder.Entity("BusBooking.Domain.Entities.BusRouteAssignment", b =>
@@ -347,7 +347,7 @@ namespace BusBooking.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("RouteId");
 
-                    b.ToTable("BusRouteAssignments");
+                    b.ToTable("BusRouteAssignments", (string)null);
                 });
 
             modelBuilder.Entity("BusBooking.Domain.Entities.Cancellation", b =>
@@ -387,7 +387,7 @@ namespace BusBooking.Infrastructure.Persistence.Migrations
                     b.HasIndex("BookingId")
                         .IsUnique();
 
-                    b.ToTable("Cancellations");
+                    b.ToTable("Cancellations", (string)null);
                 });
 
             modelBuilder.Entity("BusBooking.Domain.Entities.OperatorLocation", b =>
@@ -434,7 +434,7 @@ namespace BusBooking.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("OperatorId");
 
-                    b.ToTable("OperatorLocations");
+                    b.ToTable("OperatorLocations", (string)null);
                 });
 
             modelBuilder.Entity("BusBooking.Domain.Entities.Payment", b =>
@@ -486,7 +486,7 @@ namespace BusBooking.Infrastructure.Persistence.Migrations
                     b.HasIndex("BookingId")
                         .IsUnique();
 
-                    b.ToTable("Payments");
+                    b.ToTable("Payments", (string)null);
                 });
 
             modelBuilder.Entity("BusBooking.Domain.Entities.PlatformConfig", b =>
@@ -520,7 +520,7 @@ namespace BusBooking.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("PlatformConfigs");
+                    b.ToTable("PlatformConfigs", (string)null);
                 });
 
             modelBuilder.Entity("BusBooking.Domain.Entities.Route", b =>
@@ -563,7 +563,7 @@ namespace BusBooking.Infrastructure.Persistence.Migrations
                     b.HasIndex("SourceCity", "DestinationCity")
                         .IsUnique();
 
-                    b.ToTable("Routes");
+                    b.ToTable("Routes", (string)null);
                 });
 
             modelBuilder.Entity("BusBooking.Domain.Entities.Seat", b =>
@@ -608,7 +608,7 @@ namespace BusBooking.Infrastructure.Persistence.Migrations
                     b.HasIndex("BusId", "SeatNumber")
                         .IsUnique();
 
-                    b.ToTable("Seats");
+                    b.ToTable("Seats", (string)null);
                 });
 
             modelBuilder.Entity("BusBooking.Domain.Entities.SeatLock", b =>
@@ -650,7 +650,7 @@ namespace BusBooking.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("SeatId", "JourneyDate", "IsReleased");
 
-                    b.ToTable("SeatLocks");
+                    b.ToTable("SeatLocks", (string)null);
                 });
 
             modelBuilder.Entity("BusBooking.Domain.Entities.User", b =>
@@ -702,7 +702,7 @@ namespace BusBooking.Infrastructure.Persistence.Migrations
                     b.HasIndex("UserName")
                         .IsUnique();
 
-                    b.ToTable("Users");
+                    b.ToTable("Users", (string)null);
                 });
 
             modelBuilder.Entity("BusBooking.Domain.Entities.Booking", b =>

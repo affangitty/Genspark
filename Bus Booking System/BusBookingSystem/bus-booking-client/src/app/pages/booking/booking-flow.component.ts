@@ -1,7 +1,7 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { FormArray, FormBuilder, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
-import { finalize } from 'rxjs';
+import { finalize, timeout } from 'rxjs';
 import { BookingStateService } from '../../core/services/booking-state.service';
 import { BookingService } from '../../core/services/booking.service';
 import { PassengerRequest } from '../../core/models';
@@ -17,6 +17,7 @@ export class BookingFlowComponent implements OnInit {
   loading = false;
   error = '';
   paymentSuccess = false;
+  private loadingWatchdog?: number;
 
   form = this.fb.group({
     passengers: this.fb.array([])
@@ -66,6 +67,14 @@ export class BookingFlowComponent implements OnInit {
 
     this.loading = true;
     this.error = '';
+    if (this.loadingWatchdog) {
+      window.clearTimeout(this.loadingWatchdog);
+    }
+    this.loadingWatchdog = window.setTimeout(() => {
+      if (!this.loading) return;
+      this.loading = false;
+      this.error = 'Booking is taking too long. Please refresh and try again.';
+    }, 45_000);
 
     const passengers: PassengerRequest[] = state.selectedSeats.map((seat, index) => {
       const formValue = this.passengers.at(index).getRawValue();
@@ -83,7 +92,16 @@ export class BookingFlowComponent implements OnInit {
         journeyDate: state.journeyDate,
         passengers
       })
-      .pipe(finalize(() => (this.loading = false)))
+      .pipe(
+        timeout(30_000),
+        finalize(() => {
+          if (this.loadingWatchdog) {
+            window.clearTimeout(this.loadingWatchdog);
+            this.loadingWatchdog = undefined;
+          }
+          this.loading = false;
+        })
+      )
       .subscribe({
         next: () => {
           this.paymentSuccess = true;
@@ -91,6 +109,10 @@ export class BookingFlowComponent implements OnInit {
           setTimeout(() => this.router.navigate(['/user/dashboard']), 1200);
         },
         error: (err) => {
+          if (err?.name === 'TimeoutError') {
+            this.error = 'Booking timed out. Please try again.';
+            return;
+          }
           const body = err?.error;
           this.error =
             typeof body === 'string'

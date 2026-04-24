@@ -14,7 +14,13 @@ export function httpErrorMessage(err: unknown, fallback: string): string {
     }
     for (const key of ['detail', 'title', 'message'] as const) {
       const v = o[key];
-      if (typeof v === 'string' && v.trim()) return v;
+      if (typeof v === 'string' && v.trim()) {
+        const inner = o['error'];
+        if (typeof inner === 'string' && inner.trim() && inner !== v) {
+          return `${v} (${inner})`;
+        }
+        return v;
+      }
     }
     const inner = o['error'];
     if (typeof inner === 'string' && inner.trim()) return inner;

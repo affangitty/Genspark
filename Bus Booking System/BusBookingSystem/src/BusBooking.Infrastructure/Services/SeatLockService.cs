@@ -1,4 +1,5 @@
 using BusBooking.Application.Interfaces;
+using BusBooking.Domain;
 using BusBooking.Domain.Entities;
 using BusBooking.Domain.Interfaces;
 
@@ -25,7 +26,7 @@ public class SeatLockService : ISeatLockService
             if (seat == null)
                 return false;
 
-            var targetJourneyDate = (journeyDate ?? DateTime.UtcNow).Date;
+            var targetJourneyDate = JourneyDateUtc.ToUtcCalendarStart(journeyDate ?? DateTime.UtcNow);
 
             // Check if already locked and not expired
             var existingLock = await _unitOfWork.SeatLocks.GetActiveLockAsync(seatId, targetJourneyDate);
@@ -59,7 +60,7 @@ public class SeatLockService : ISeatLockService
     {
         try
         {
-            var targetJourneyDate = (journeyDate ?? DateTime.UtcNow).Date;
+            var targetJourneyDate = JourneyDateUtc.ToUtcCalendarStart(journeyDate ?? DateTime.UtcNow);
             var existingLock = await _unitOfWork.SeatLocks.GetActiveLockAsync(seatId, targetJourneyDate);
             
             if (existingLock == null || existingLock.UserId != userId)
@@ -79,7 +80,7 @@ public class SeatLockService : ISeatLockService
 
     public async Task<bool> IsSeatLockedAsync(Guid seatId, DateTime? journeyDate = null)
     {
-        var targetJourneyDate = (journeyDate ?? DateTime.UtcNow).Date;
+        var targetJourneyDate = JourneyDateUtc.ToUtcCalendarStart(journeyDate ?? DateTime.UtcNow);
         var existingLock = await _unitOfWork.SeatLocks.GetActiveLockAsync(seatId, targetJourneyDate);
         return existingLock != null && !existingLock.IsReleased && existingLock.ExpiresAt > DateTime.UtcNow;
     }
@@ -88,7 +89,7 @@ public class SeatLockService : ISeatLockService
     {
         try
         {
-            var targetJourneyDate = (journeyDate ?? DateTime.UtcNow).Date;
+            var targetJourneyDate = JourneyDateUtc.ToUtcCalendarStart(journeyDate ?? DateTime.UtcNow);
             var existingLock = await _unitOfWork.SeatLocks.GetActiveLockAsync(seatId, targetJourneyDate);
             
             if (existingLock == null || existingLock.IsReleased)

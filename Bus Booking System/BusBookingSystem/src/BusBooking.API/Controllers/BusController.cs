@@ -163,8 +163,9 @@ public class BusController : ControllerBase
         if (op == null || op.Status != OperatorStatus.Approved)
             return Forbid();
 
-        // Check unique bus number
-        var existing = await _unitOfWork.Buses.GetByBusNumberAsync(request.BusNumber);
+        // Check unique bus number (normalized to match storage).
+        var normalizedBusNumber = request.BusNumber.Trim().ToUpperInvariant();
+        var existing = await _unitOfWork.Buses.GetByBusNumberAsync(normalizedBusNumber);
         if (existing != null)
             return Conflict(new { message = "Bus number already exists." });
 
@@ -183,7 +184,7 @@ public class BusController : ControllerBase
 
         var bus = new Bus
         {
-            BusNumber = request.BusNumber.Trim().ToUpper(),
+            BusNumber = normalizedBusNumber,
             BusName = request.BusName.Trim(),
             OperatorId = operatorId.Value,
             LayoutId = request.LayoutId,
@@ -360,14 +361,27 @@ public class BusController : ControllerBase
         if (bus == null || bus.OperatorId != operatorId.Value)
             return NotFound(new { message = "Bus not found." });
 
-        if (bus.Status == BusStatus.Removed)
-            return BadRequest(new { message = "Bus is already removed." });
+        // Hard delete is only safe when there are no bookings (FK is Restrict).
+        // If bookings exist, we keep the row for history but free the bus number so the operator can reuse it.
+        var bookings = await _unitOfWork.Bookings.GetByBusIdAsync(id);
+        if (bookings.Any())
+        {
+            if (bus.Status != BusStatus.Removed)
+                bus.Status = BusStatus.Removed;
 
-        bus.Status = BusStatus.Removed;
-        _unitOfWork.Buses.Update(bus);
+            // Free unique bus number (column max len 20). Example: "REM-1a2b3c4d"
+            var suffix = bus.Id.ToString("N")[..8];
+            bus.BusNumber = $"REM-{suffix}".ToUpperInvariant();
+
+            _unitOfWork.Buses.Update(bus);
+            await _unitOfWork.SaveChangesAsync();
+            return Ok(new { message = "Bus removed (archived for booking history). Bus number is now reusable." });
+        }
+
+        // No bookings -> delete row; seats, seat locks, and route assignments cascade.
+        _unitOfWork.Buses.Delete(bus);
         await _unitOfWork.SaveChangesAsync();
-
-        return Ok(new { message = "Bus permanently removed." });
+        return Ok(new { message = "Bus permanently deleted." });
     }
 
     /// <summary>
@@ -379,6 +393,16 @@ public class BusController : ControllerBase
         var bus = await _unitOfWork.Buses.GetByIdAsync(id);
         if (bus == null)
             return NotFound(new { message = "Bus not found." });
+
+        // If a bus was inserted/updated outside the normal operator flow, seats may not exist even though a layout is set.
+        // Auto-generate seats from the layout once so seat selection can work.
+        if (!(bus.Seats?.Any(s => s.IsActive) ?? false) && bus.Layout != null)
+        {
+            await GenerateSeatsForBus(bus.Id, bus.Layout);
+            bus = await _unitOfWork.Buses.GetByIdAsync(id);
+            if (bus == null)
+                return NotFound(new { message = "Bus not found." });
+        }
 
         var bookedSeatIds = await _unitOfWork.Bookings
             .GetBookedSeatIdsByBusAndDateAsync(id, journeyDate.Date);
@@ -447,6 +471,32 @@ public class BusController : ControllerBase
 
         if (request.IsApproved)
         {
+            // Enforce operator location requirement at approval time so users don't hit 409 later in booking.
+            // Operator must have offices in both source + destination cities for the bus route.
+            if (bus.OperatorId != Guid.Empty && bus.RouteId.HasValue)
+            {
+                var route = await _unitOfWork.Routes.GetByIdAsync(bus.RouteId.Value);
+                if (route != null)
+                {
+                    var locations = (await _unitOfWork.BusOperators.GetLocationsByOperatorIdAsync(bus.OperatorId)).ToList();
+                    var hasSource = locations.Any(l => CityMatchesRouteCity(l.City, route.SourceCity));
+                    var hasDest = locations.Any(l => CityMatchesRouteCity(l.City, route.DestinationCity));
+                    if (!hasSource || !hasDest)
+                    {
+                        return Conflict(new
+                        {
+                            message =
+                                "Operator must add office locations for both route cities before approval.",
+                            missing = new[]
+                            {
+                                !hasSource ? route.SourceCity : null,
+                                !hasDest ? route.DestinationCity : null
+                            }.Where(x => x != null).ToArray()
+                        });
+                    }
+                }
+            }
+
             bus.Status = BusStatus.Active;
             bus.ApprovedAt = DateTime.UtcNow;
             bus.AdminNotes = request.AdminNotes;
@@ -670,6 +720,46 @@ public class BusController : ControllerBase
     }
 
     /// <summary>
+    /// Get approved route assignments — admin only (useful to verify what will show up in search).
+    /// </summary>
+    [HttpGet("route-assignments/approved")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> GetApprovedAssignments()
+    {
+        var assignments = await _unitOfWork.BusRouteAssignments.GetApprovedAsync();
+        // Hide stale rows so this table reflects what can actually appear in search.
+        // Search requires: active bus + approved operator + generated seats.
+        assignments = assignments
+            .Where(a =>
+                a.Bus.Status == BusStatus.Active
+                && (a.Bus.Operator == null || a.Bus.Operator.Status == OperatorStatus.Approved)
+                && a.Bus.Seats.Any(s => s.IsActive))
+            .ToList();
+
+        return Ok(assignments.Select(a => new
+        {
+            a.Id,
+            a.BusId,
+            BusNumber = a.Bus.BusNumber,
+            BusName = a.Bus.BusName,
+            BusStatus = a.Bus.Status.ToString(),
+            SeatCount = a.Bus.Seats.Count(s => s.IsActive),
+            OperatorId = a.Bus.OperatorId,
+            OperatorName = a.Bus.Operator?.CompanyName,
+            OperatorStatus = a.Bus.Operator != null ? a.Bus.Operator.Status.ToString() : "Unknown",
+            RouteId = a.RouteId,
+            SourceCity = a.Route.SourceCity,
+            DestinationCity = a.Route.DestinationCity,
+            a.DepartureTime,
+            a.ArrivalTime,
+            a.DurationMinutes,
+            a.BaseFare,
+            a.ReviewedAt,
+            a.AdminNotes
+        }));
+    }
+
+    /// <summary>
     /// Approve or reject a route assignment — admin only
     /// </summary>
     [HttpPost("route-assignments/{assignmentId}/approve")]
@@ -686,6 +776,28 @@ public class BusController : ControllerBase
 
         if (request.IsApproved)
         {
+            // Enforce operator location requirement at approval time.
+            var route = await _unitOfWork.Routes.GetByIdAsync(assignment.RouteId);
+            if (route != null)
+            {
+                var locations = (await _unitOfWork.BusOperators.GetLocationsByOperatorIdAsync(assignment.OperatorId)).ToList();
+                var hasSource = locations.Any(l => CityMatchesRouteCity(l.City, route.SourceCity));
+                var hasDest = locations.Any(l => CityMatchesRouteCity(l.City, route.DestinationCity));
+                if (!hasSource || !hasDest)
+                {
+                    return Conflict(new
+                    {
+                        message =
+                            "Operator must add office locations for both route cities before approval.",
+                        missing = new[]
+                        {
+                            !hasSource ? route.SourceCity : null,
+                            !hasDest ? route.DestinationCity : null
+                        }.Where(x => x != null).ToArray()
+                    });
+                }
+            }
+
             assignment.IsApproved = true;
             assignment.ReviewedAt = DateTime.UtcNow;
             assignment.AdminNotes = request.AdminNotes;
@@ -699,6 +811,12 @@ public class BusController : ControllerBase
                 bus.ArrivalTime = assignment.ArrivalTime;
                 bus.DurationMinutes = assignment.DurationMinutes;
                 bus.BaseFare = assignment.BaseFare;
+                // Route assignment approval should publish the bus for search; otherwise RouteId is set but Status stays PendingApproval and search excludes it.
+                if (bus.Status == BusStatus.PendingApproval)
+                {
+                    bus.Status = BusStatus.Active;
+                    bus.ApprovedAt = DateTime.UtcNow;
+                }
                 _unitOfWork.Buses.Update(bus);
             }
         }
@@ -720,6 +838,18 @@ public class BusController : ControllerBase
         });
     }
 
+    private static bool CityMatchesRouteCity(string locationCity, string routeCity)
+    {
+        var a = NormalizeCityToken(locationCity);
+        var b = NormalizeCityToken(routeCity);
+        if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b))
+            return false;
+        return a == b || a.Contains(b, StringComparison.Ordinal) || b.Contains(a, StringComparison.Ordinal);
+    }
+
+    private static string NormalizeCityToken(string name) =>
+        System.Text.RegularExpressions.Regex.Replace(name.ToLowerInvariant().Trim(), @"\s+", " ");
+
     // ── Helpers ───────────────────────────────────────────────
 
     private Guid? GetOperatorId()
@@ -733,16 +863,42 @@ public class BusController : ControllerBase
     {
         try
         {
-            var seatDefinitions = System.Text.Json.JsonSerializer
-                .Deserialize<List<SeatDefinition>>(layout.LayoutJson);
+            // Idempotent: do not generate again if seats already exist.
+            var existing = await _unitOfWork.Seats.GetByBusIdAsync(busId);
+            var existingNumbers = existing
+                .Select(s => (s.SeatNumber ?? string.Empty).Trim().ToUpperInvariant())
+                .Where(n => !string.IsNullOrEmpty(n))
+                .ToHashSet(StringComparer.Ordinal);
+
+            // LayoutJson is produced from JS/TS objects and uses camelCase keys (seatNumber, row, column, deck, type).
+            // System.Text.Json is case-sensitive by default, so enable case-insensitive matching to avoid generating 0 seats.
+            var seatDefinitions = System.Text.Json.JsonSerializer.Deserialize<List<SeatDefinition>>(
+                layout.LayoutJson,
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
             if (seatDefinitions == null || seatDefinitions.Count == 0)
                 return;
 
-            var seats = seatDefinitions.Select(sd => new Seat
+            // Defensive: LayoutJson may contain duplicates; also handle re-generation by only inserting missing seat numbers.
+            var toInsert = seatDefinitions
+                .Where(sd => !string.IsNullOrWhiteSpace(sd.SeatNumber))
+                .Select(sd => new
+                {
+                    Raw = sd,
+                    Key = sd.SeatNumber.Trim().ToUpperInvariant()
+                })
+                .DistinctBy(x => x.Key)
+                .Where(x => !existingNumbers.Contains(x.Key))
+                .Select(x => x.Raw)
+                .ToList();
+
+            if (toInsert.Count == 0)
+                return;
+
+            var seats = toInsert.Select(sd => new Seat
             {
                 BusId = busId,
-                SeatNumber = sd.SeatNumber,
+                SeatNumber = sd.SeatNumber.Trim(),
                 Row = sd.Row,
                 Column = sd.Column,
                 Deck = sd.Deck,

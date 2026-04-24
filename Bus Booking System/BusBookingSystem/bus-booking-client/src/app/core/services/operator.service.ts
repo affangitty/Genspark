@@ -7,6 +7,7 @@ import { Bus } from '../models';
 @Injectable({ providedIn: 'root' })
 export class OperatorService {
   private readonly busApiUrl = `${environment.apiUrl}/bus`;
+  private readonly operatorApiUrl = `${environment.apiUrl}/operator`;
 
   constructor(private http: HttpClient) {}
 
@@ -87,5 +88,19 @@ export class OperatorService {
       durationMinutes: payload.durationMinutes,
       baseFare: payload.baseFare
     });
+  }
+
+  getLocations(): Observable<Array<{ id: string; city: string; addressLine: string; landmark?: string; state?: string; pinCode?: string }>> {
+    return this.http.get<Array<{ id: string; city: string; addressLine: string; landmark?: string; state?: string; pinCode?: string }>>(
+      `${this.operatorApiUrl}/locations`
+    );
+  }
+
+  addLocation(payload: { city: string; addressLine: string; landmark?: string; state?: string; pinCode?: string }): Observable<unknown> {
+    return this.http.post(`${this.operatorApiUrl}/locations`, payload);
+  }
+
+  deleteLocation(locationId: string): Observable<unknown> {
+    return this.http.delete(`${this.operatorApiUrl}/locations/${locationId}`);
   }
 }

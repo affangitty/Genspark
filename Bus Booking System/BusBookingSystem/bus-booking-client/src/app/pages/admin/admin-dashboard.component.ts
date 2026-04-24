@@ -20,6 +20,22 @@ export class AdminDashboardComponent implements OnInit {
   revenue: AdminRevenueDashboard | null = null;
   routes: Array<{ id: string; sourceCity: string; destinationCity: string; sourceState: string; destinationState: string; isActive: boolean }> =
     [];
+  approvedAssignments: Array<{
+    id: string;
+    busId: string;
+    busNumber: string;
+    busName: string;
+    busStatus: string;
+    seatCount: number;
+    operatorName: string;
+    operatorStatus: string;
+    sourceCity: string;
+    destinationCity: string;
+    baseFare: number;
+    departureTime: string;
+    arrivalTime: string;
+    reviewedAt: string | null;
+  }> = [];
   loading = false;
   /** Shown when one of the parallel admin API calls fails (forkJoin used to abort the whole batch before). */
   loadError = '';
@@ -51,7 +67,8 @@ export class AdminDashboardComponent implements OnInit {
       items: [] as AdminApprovalQueueItem[],
       totalPending: 0,
       pendingOperators: 0,
-      pendingBuses: 0
+      pendingBuses: 0,
+      pendingRouteAssignments: 0
     };
     const tag = (label: string, err: unknown) => {
       const msg = httpErrorMessage(err, 'Request failed');
@@ -87,6 +104,12 @@ export class AdminDashboardComponent implements OnInit {
           tag('Routes', err);
           return of([]);
         })
+      ),
+      approvedAssignments: this.adminService.getApprovedRouteAssignments().pipe(
+        catchError((err) => {
+          tag('Approved assignments', err);
+          return of([]);
+        })
       )
     })
       .pipe(
@@ -99,7 +122,7 @@ export class AdminDashboardComponent implements OnInit {
         })
       )
       .subscribe({
-        next: ({ queue, revenue, config, routes }) => {
+        next: ({ queue, revenue, config, routes, approvedAssignments }) => {
           this.queue = queue.items ?? [];
           this.revenue = revenue;
           this.feeForm.patchValue({
@@ -109,6 +132,7 @@ export class AdminDashboardComponent implements OnInit {
             seatLockDurationMinutes: config.seatLockDurationMinutes
           });
           this.routes = routes;
+          this.approvedAssignments = approvedAssignments ?? [];
           this.cdr.detectChanges();
         }
       });
@@ -118,9 +142,23 @@ export class AdminDashboardComponent implements OnInit {
     const request$ =
       item.type === 'Operator'
         ? this.adminService.approveOperator(item.id, isApproved, isApproved ? undefined : 'Rejected by admin')
+        : item.type === 'RouteAssignment'
+        ? this.adminService.approveRouteAssignment(
+            item.id,
+            isApproved,
+            isApproved ? 'Approved by admin' : 'Rejected by admin'
+          )
         : this.adminService.approveBus(item.id, isApproved, isApproved ? 'Approved by admin' : 'Rejected by admin');
 
-    request$.subscribe(() => this.load());
+    request$.subscribe({
+      next: () => this.load(),
+      error: (err) => {
+        const msg = httpErrorMessage(err, 'Approval failed.');
+        // Surface conflicts like missing operator offices in source/destination cities.
+        this.loadError = this.loadError ? `${this.loadError} · ${msg}` : msg;
+        this.cdr.detectChanges();
+      }
+    });
   }
 
   updateFee(): void {

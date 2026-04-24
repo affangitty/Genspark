@@ -13,12 +13,20 @@ export class BusService {
 
   constructor(private http: HttpClient) { }
 
-  searchBuses(source: string, destination: string, date: string, passengerCount?: number): Observable<Bus[]> {
+  searchBuses(
+    source: string,
+    destination: string,
+    date: string,
+    passengerCount?: number | string | null
+  ): Observable<Bus[]> {
+    const raw = passengerCount ?? null;
+    const n = raw === null || raw === '' ? NaN : Number(raw);
+    const passengerCountBody = Number.isFinite(n) && n >= 1 ? n : null;
     return this.http.post<Bus[]>(`${this.apiUrl}/search`, {
       sourceCity: source.trim(),
       destinationCity: destination.trim(),
       journeyDate: date,
-      passengerCount: passengerCount ?? null
+      passengerCount: passengerCountBody
     });
   }
 
