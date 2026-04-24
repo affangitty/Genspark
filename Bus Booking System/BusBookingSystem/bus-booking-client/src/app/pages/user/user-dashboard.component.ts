@@ -77,7 +77,7 @@ export class UserDashboardComponent implements OnInit {
           timeout(25_000),
           catchError((err) => {
             if (err?.name === 'TimeoutError') {
-              this.error = 'Request timed out. Check that the API is running on http://localhost:5000.';
+              this.error = 'Request timed out. Check that the API is running.';
               this.cdr.detectChanges();
               return EMPTY;
             }

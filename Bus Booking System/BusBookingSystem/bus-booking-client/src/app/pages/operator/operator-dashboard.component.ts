@@ -147,7 +147,7 @@ export class OperatorDashboardComponent implements OnInit {
               if (requestId !== this.loadRequestId) return;
               const e = err as { name?: string };
               if (e?.name === 'TimeoutError') {
-                this.error = 'Dashboard load timed out. Make sure the API is running on http://localhost:5000.';
+                this.error = 'Dashboard load timed out. Make sure the API is running.';
               } else {
                 this.error = httpErrorMessage(err, 'Failed to load dashboard.');
               }
