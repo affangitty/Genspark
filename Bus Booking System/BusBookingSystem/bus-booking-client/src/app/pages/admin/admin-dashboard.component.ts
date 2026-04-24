@@ -20,6 +20,15 @@ export class AdminDashboardComponent implements OnInit {
   revenue: AdminRevenueDashboard | null = null;
   routes: Array<{ id: string; sourceCity: string; destinationCity: string; sourceState: string; destinationState: string; isActive: boolean }> =
     [];
+  operators: Array<{
+    id: string;
+    companyName: string;
+    contactPersonName: string;
+    email: string;
+    phoneNumber: string;
+    status: string;
+    createdAt: string;
+  }> = [];
   approvedAssignments: Array<{
     id: string;
     busId: string;
@@ -110,6 +119,12 @@ export class AdminDashboardComponent implements OnInit {
           tag('Approved assignments', err);
           return of([]);
         })
+      ),
+      operators: this.adminService.getOperators().pipe(
+        catchError((err) => {
+          tag('Operators', err);
+          return of([]);
+        })
       )
     })
       .pipe(
@@ -122,7 +137,7 @@ export class AdminDashboardComponent implements OnInit {
         })
       )
       .subscribe({
-        next: ({ queue, revenue, config, routes, approvedAssignments }) => {
+        next: ({ queue, revenue, config, routes, approvedAssignments, operators }) => {
           this.queue = queue.items ?? [];
           this.revenue = revenue;
           this.feeForm.patchValue({
@@ -133,6 +148,7 @@ export class AdminDashboardComponent implements OnInit {
           });
           this.routes = routes;
           this.approvedAssignments = approvedAssignments ?? [];
+          this.operators = operators ?? [];
           this.cdr.detectChanges();
         }
       });
@@ -179,6 +195,30 @@ export class AdminDashboardComponent implements OnInit {
     this.adminService.createRoute(this.routeForm.getRawValue() as any).subscribe(() => {
       this.routeForm.reset();
       this.load();
+    });
+  }
+
+  disableOperator(operatorId: string): void {
+    const reason = window.prompt('Reason for disabling this operator?') ?? '';
+    if (!reason.trim()) return;
+    this.adminService.disableOperator(operatorId, reason.trim()).subscribe({
+      next: () => this.load(),
+      error: (err) => {
+        const msg = httpErrorMessage(err, 'Disable operator failed.');
+        this.loadError = this.loadError ? `${this.loadError} · ${msg}` : msg;
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  enableOperator(operatorId: string): void {
+    this.adminService.enableOperator(operatorId).subscribe({
+      next: () => this.load(),
+      error: (err) => {
+        const msg = httpErrorMessage(err, 'Enable operator failed.');
+        this.loadError = this.loadError ? `${this.loadError} · ${msg}` : msg;
+        this.cdr.detectChanges();
+      }
     });
   }
 }

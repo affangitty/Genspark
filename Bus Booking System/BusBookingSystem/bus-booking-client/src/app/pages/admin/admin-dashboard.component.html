@@ -80,6 +80,36 @@
 
 <div class="card app-card border-0 mb-4">
   <div class="card-header bg-white border-bottom py-3">
+    <h2 class="h5 fw-semibold mb-0">Operators</h2>
+  </div>
+  <ul class="list-group list-group-flush">
+    @for (op of operators; track op.id) {
+      <li class="list-group-item px-4 py-3">
+        <div class="row align-items-center g-2">
+          <div class="col-md-8">
+            <strong>{{ op.companyName }}</strong>
+            <p class="small text-muted mb-0">{{ op.email }} · {{ op.phoneNumber }}</p>
+            <p class="small text-muted mb-0">Contact: {{ op.contactPersonName }} · Created {{ op.createdAt | date: 'short' }}</p>
+          </div>
+          <div class="col-md-4 text-md-end">
+            <span class="badge bg-secondary-subtle text-secondary me-2">{{ op.status }}</span>
+            @if (op.status === 'Approved') {
+              <button type="button" class="btn btn-outline-danger btn-sm" (click)="disableOperator(op.id)">Disable</button>
+            }
+            @if (op.status === 'Disabled') {
+              <button type="button" class="btn btn-outline-success btn-sm" (click)="enableOperator(op.id)">Enable</button>
+            }
+          </div>
+        </div>
+      </li>
+    } @empty {
+      <li class="list-group-item text-center text-muted py-4">No operators.</li>
+    }
+  </ul>
+</div>
+
+<div class="card app-card border-0 mb-4">
+  <div class="card-header bg-white border-bottom py-3">
     <h2 class="h5 fw-semibold mb-0">Approved route assignments (live in search)</h2>
   </div>
   <div class="card-body">

@@ -483,12 +483,14 @@ public class BusRouteAssignmentRepository : IBusRouteAssignmentRepository
     public async Task<BusRouteAssignment?> GetByIdAsync(Guid id) =>
         await _context.BusRouteAssignments
             .Include(a => a.Bus).ThenInclude(b => b.Operator)
+            .Include(a => a.Bus).ThenInclude(b => b.Seats)
             .Include(a => a.Route)
             .FirstOrDefaultAsync(a => a.Id == id);
 
     public async Task<IEnumerable<BusRouteAssignment>> GetPendingAsync() =>
         await _context.BusRouteAssignments
             .Include(a => a.Bus).ThenInclude(b => b.Operator)
+            .Include(a => a.Bus).ThenInclude(b => b.Seats)
             .Include(a => a.Route)
             .Where(a => !a.IsApproved && !a.IsRejected)
             .OrderByDescending(a => a.CreatedAt)
@@ -497,6 +499,7 @@ public class BusRouteAssignmentRepository : IBusRouteAssignmentRepository
     public async Task<IEnumerable<BusRouteAssignment>> GetApprovedAsync() =>
         await _context.BusRouteAssignments
             .Include(a => a.Bus).ThenInclude(b => b.Operator)
+            .Include(a => a.Bus).ThenInclude(b => b.Seats)
             .Include(a => a.Route)
             .Where(a => a.IsApproved && !a.IsRejected)
             .OrderByDescending(a => a.ReviewedAt ?? a.CreatedAt)

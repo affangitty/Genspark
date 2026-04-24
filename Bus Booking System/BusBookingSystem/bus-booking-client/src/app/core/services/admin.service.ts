@@ -35,6 +35,38 @@ export class AdminService {
     });
   }
 
+  getOperators(): Observable<
+    Array<{
+      id: string;
+      companyName: string;
+      contactPersonName: string;
+      email: string;
+      phoneNumber: string;
+      status: string;
+      createdAt: string;
+    }>
+  > {
+    return this.http.get<
+      Array<{
+        id: string;
+        companyName: string;
+        contactPersonName: string;
+        email: string;
+        phoneNumber: string;
+        status: string;
+        createdAt: string;
+      }>
+    >(`${this.apiUrl}/operators`);
+  }
+
+  disableOperator(operatorId: string, reason: string): Observable<unknown> {
+    return this.http.post(`${this.apiUrl}/operators/${operatorId}/disable`, { reason });
+  }
+
+  enableOperator(operatorId: string): Observable<unknown> {
+    return this.http.post(`${this.apiUrl}/operators/${operatorId}/enable`, {});
+  }
+
   approveBus(busId: string, isApproved: boolean, adminNotes?: string): Observable<unknown> {
     return this.http.post(`${this.busApiUrl}/${busId}/approve`, {
       isApproved,
