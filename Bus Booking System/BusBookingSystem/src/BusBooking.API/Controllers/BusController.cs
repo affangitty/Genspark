@@ -677,7 +677,6 @@ public class BusController : ControllerBase
         {
             BusId = id,
             RouteId = request.RouteId,
-            OperatorId = operatorId.Value,
             DepartureTime = request.DepartureTime,
             ArrivalTime = request.ArrivalTime,
             DurationMinutes = request.DurationMinutes,
@@ -780,7 +779,7 @@ public class BusController : ControllerBase
             var route = await _unitOfWork.Routes.GetByIdAsync(assignment.RouteId);
             if (route != null)
             {
-                var locations = (await _unitOfWork.BusOperators.GetLocationsByOperatorIdAsync(assignment.OperatorId)).ToList();
+                var locations = (await _unitOfWork.BusOperators.GetLocationsByOperatorIdAsync(assignment.Bus.OperatorId)).ToList();
                 var hasSource = locations.Any(l => CityMatchesRouteCity(l.City, route.SourceCity));
                 var hasDest = locations.Any(l => CityMatchesRouteCity(l.City, route.DestinationCity));
                 if (!hasSource || !hasDest)

@@ -333,7 +333,7 @@ public class BookingController : ControllerBase
                 PassengerName = p.PassengerName,
                 Age = p.Age,
                 Gender = p.Gender,
-                SeatNumber = p.SeatNumber,
+                SeatNumber = p.Seat.SeatNumber,
                 BookingReference = b.BookingReference
             }).ToList()
         }).ToList();
@@ -375,7 +375,7 @@ public class BookingController : ControllerBase
                     PassengerName = p.PassengerName,
                     Age = p.Age,
                     Gender = p.Gender,
-                    SeatNumber = p.SeatNumber
+                    SeatNumber = p.Seat.SeatNumber
                 })
                 .ToList() ?? new List<PassengerResponseDto>()
         };

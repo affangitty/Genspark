@@ -82,7 +82,7 @@ public class TicketService : ITicketService
                     {
                         column.Item().Background(Colors.Grey.Lighten3).Padding(8).Column(pc =>
                         {
-                            pc.Item().Text($"{p.PassengerName} — Seat {p.SeatNumber} ({p.Gender}, age {p.Age})");
+                            pc.Item().Text($"{p.PassengerName} — Seat {p.Seat.SeatNumber} ({p.Gender}, age {p.Age})");
                         });
                     }
 

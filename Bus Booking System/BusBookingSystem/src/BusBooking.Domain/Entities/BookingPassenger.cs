@@ -13,7 +13,6 @@ public class BookingPassenger : BaseEntity
     public string PassengerName { get; set; } = string.Empty;
     public int Age { get; set; }
     public string Gender { get; set; } = string.Empty;  // "Male" | "Female" | "Other"
-    public string SeatNumber { get; set; } = string.Empty;  // Denormalized for ticket display
 
     // Navigation
     public Booking Booking { get; set; } = null!;

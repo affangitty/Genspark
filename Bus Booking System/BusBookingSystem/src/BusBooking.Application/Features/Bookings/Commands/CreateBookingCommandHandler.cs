@@ -110,8 +110,7 @@ public class CreateBookingCommandHandler : IRequestHandler<CreateBookingCommand,
                 SeatId = passengerDto.SeatId,
                 PassengerName = passengerDto.PassengerName,
                 Age = passengerDto.Age,
-                Gender = passengerDto.Gender,
-                SeatNumber = seat.SeatNumber
+                Gender = passengerDto.Gender
             };
 
             // Initialize context to allow adding without explicit repository method
